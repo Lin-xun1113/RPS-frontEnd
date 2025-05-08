@@ -368,13 +368,53 @@ export default function GameComponent() {
     // 检查当前玩家是否已揭示
     const currentPlayerRevealed = isPlayer1 ? player1Revealed : (isPlayer2 ? player2Revealed : false);
     
+    // 检查对手是否已揭示
+    const opponentRevealed = isPlayer1 ? player2Revealed : (isPlayer2 ? player1Revealed : false);
+    
+    // 帮助函数：统一判断玩家阶段逻辑
+    const determinePlayerPhase = (playerRevealed, opponentRevealed, playerCommitted) => {
+      if (playerRevealed) {
+        if (opponentRevealed) {
+          console.log('✅✅ 双方都已揭示移动');
+          return 'both_revealed';
+        } else {
+          console.log('✅⏳ 玩家已揭示，等待对手揭示');
+          return 'waiting_opponent_reveal';
+        }
+      } else if (!playerCommitted) {
+        console.log('📝 玩家尚未提交移动，显示提交界面');
+        return 'commit';
+      } else {
+        // 玩家已提交但未揭示
+        if (opponentRevealed) {
+          console.log('⚠️ 对手已揭示，提示玩家需要揭示');
+          return 'waiting_my_reveal';
+        } else {
+          console.log('🔒 玩家已提交移动但未揭示，显示揭示界面');
+          return 'reveal';
+        }
+      }
+    };
+    
     // 根据游戏状态和玩家角色确定当前阶段
     const gameState = GAME_STATES[gameData.state] || 'unknown';
     console.log('游戏状态码:', gameData.state, '游戏状态:', gameState);
     
     // 如果玩家已揭示并且状态被锁定，保持状态不变
-    if (phaseLocked && phase === 'player_revealed' && currentPlayerRevealed && gameData.state === 1) {
-      console.log('状态已锁定，维持"已揭示"状态');
+    if (phaseLocked && 
+       (phase === 'player_revealed' || phase === 'waiting_opponent_reveal' || phase === 'both_revealed' || phase === 'waiting_my_reveal') && 
+       gameData.state === 1) {
+      console.log('状态已锁定，维持当前状态:', phase);
+      
+      // 为防止永久锁定，添加30秒后自动解锁
+      if (!window._phaseLockTimer) {
+        window._phaseLockTimer = setTimeout(() => {
+          console.log('状态锁定超时，自动解锁');
+          setPhaseLocked(false);
+          window._phaseLockTimer = null;
+        }, 30000);
+      }
+      
       return;
     }
     
@@ -431,38 +471,18 @@ export default function GameComponent() {
         // 2. 玩家未提交移动时，显示提交界面
         // 3. 玩家已提交但未揭示时，无论对手状态如何，都显示揭示界面
         
-        if (player1Revealed) {
-          // 1. 玩家1已提交且已揭示 - 显示已揭示状态
-          console.log('✅ 玩家1已揭示移动'); 
-          setPhase('player_revealed');
-        } else if (!player1Committed) {
-          // 2. 玩家1尚未提交移动，显示提交界面
-          console.log('📝 玩家1尚未提交移动，显示提交界面');
-          setPhase('commit');
-        } else {
-          // 3. 玩家1已提交但未揭示 - 显示揭示界面
-          // 注意：这里不再需要判断玩家2是否揭示，因为无论如何玩家1都应该揭示
-          console.log('🔒 玩家1已提交移动但未揭示，显示揭示界面');
-          setPhase('reveal');
-        }
+        console.log('玩家1状态判断 - 当前回合:', gameData.currentTurn);
+        
+        // 使用抽象函数确定玩家1的阶段
+        const player1Phase = determinePlayerPhase(player1Revealed, player2Revealed, player1Committed);
+        setPhase(player1Phase);
       } else if (isPlayer2) {
         // 检查玩家2的揭示状态
         console.log('👤 玩家2状态检查 - 当前回合:', gameData.currentTurn);
         
-        // *** 与玩家1相同的逻辑 ***
-        if (player2Revealed) {
-          // 1. 玩家2已提交且已揭示 - 显示已揭示状态
-          console.log('✅ 玩家2已揭示移动');
-          setPhase('player_revealed');
-        } else if (!player2Committed) {
-          // 2. 玩家2尚未提交移动，显示提交界面
-          console.log('📝 玩家2尚未提交移动，显示提交界面');
-          setPhase('commit');
-        } else {
-          // 3. 玩家2已提交但未揭示 - 显示揭示界面
-          console.log('🔒 玩家2已提交移动但未揭示，显示揭示界面');
-          setPhase('reveal');
-        }
+        // 使用抽象函数确定玩家2的阶段
+        const player2Phase = determinePlayerPhase(player2Revealed, player1Revealed, player2Committed);
+        setPhase(player2Phase);
       }
     } 
 // 提交阶段的判断 - 状态为Created(0)或CommitPhase(5)
@@ -911,8 +931,14 @@ else if (gameData.state === 0 || gameData.state === 5) {
       console.log('移动揭示交易收据:', receipt);
       
       // 设置状态为已揭示并锁定状态，避免界面闪烁
-      setPhase('player_revealed');
+      setPhase('waiting_opponent_reveal'); // 使用新的状态名称，更准确地表达等待对手揭示
       setPhaseLocked(true);
+      
+      // 清除之前的状态锁定计时器，如果存在
+      if (window._phaseLockTimer) {
+        clearTimeout(window._phaseLockTimer);
+        window._phaseLockTimer = null;
+      }
       console.log('已锁定玩家揭示状态，防止界面闪烁');
       
       // 刷新游戏状态 - 但不会改变已锁定的界面状态
@@ -1003,7 +1029,7 @@ else if (gameData.state === 0 || gameData.state === 5) {
                 onTimeout={() => console.log('提交阶段超时')} 
                 isPaused={false}
               />
-              <p className="mt-2 text-xs text-blue-300">提交时间不受限制，但请尽快提交以保持游戏流畅</p>
+              <p className="mt-2 text-xs text-blue-300">提交时间受限制，请尽快提交以保持游戏流畅</p>
             </div>
           )}
           
@@ -1015,7 +1041,7 @@ else if (gameData.state === 0 || gameData.state === 5) {
                 onTimeout={() => console.log('提交阶段超时')} 
                 isPaused={false}
               />
-              <p className="mt-2 text-xs text-blue-300">提交无严格时间限制，请耐心等待</p>
+              <p className="mt-2 text-xs text-blue-300">提交有严格时间限制，请耐心等待</p>
             </div>
           )}
           
@@ -1061,7 +1087,7 @@ else if (gameData.state === 0 || gameData.state === 5) {
         
         {(phase === 'commit' || phase === 'reveal') && (
           <div className="mb-6">
-            <h3 className="text-xl font-medieval text-amber-900 mb-4 text-center">
+            <h3 className="text-xl font-medieval text-blue-400 mb-4 text-center">
               {phase === 'commit' ? '选择你的移动' : '你选择的移动'}
             </h3>
             
@@ -1077,7 +1103,7 @@ else if (gameData.state === 0 || gameData.state === 5) {
                   disabled={!selectedMove || loading}
                   className={`py-2 px-6 rounded-md ${!selectedMove || loading 
                     ? 'bg-gray-400 cursor-not-allowed' 
-                    : 'bg-amber-700 hover:bg-amber-800'} text-white font-medieval transition-colors`}
+                    : 'bg-blue-600 hover:bg-blue-700'} text-white font-medieval transition-colors`}
                 >
                   {loading ? '提交中...' : '提交移动'}
                 </button>
@@ -1091,14 +1117,14 @@ else if (gameData.state === 0 || gameData.state === 5) {
                   disabled={!selectedMove || loading}
                   className={`py-2 px-6 rounded-md ${!selectedMove || loading 
                     ? 'bg-gray-400 cursor-not-allowed' 
-                    : 'bg-amber-700 hover:bg-amber-800'} text-white font-medieval transition-colors`}
+                    : 'bg-blue-600 hover:bg-blue-700'} text-white font-medieval transition-colors`}
                 >
                   {loading ? '揭示中...' : '揭示移动'}
                 </button>
               </div>
             )}
             
-            {phase === 'player_revealed' && (
+            {(phase === 'waiting_opponent_reveal' || phase === 'player_revealed') && (
               <div className="text-center bg-blue-900/60 border border-blue-400/60 text-blue-200 px-4 py-3 rounded relative mt-4 shadow-[0_0_10px_rgba(59,130,246,0.3)]">
                 <p className="mb-2">您已成功揭示移动，等待对手揭示...</p>
                 <CountdownTimer 
@@ -1106,20 +1132,43 @@ else if (gameData.state === 0 || gameData.state === 5) {
                   onTimeout={() => console.log('揭示阶段超时')} 
                   isPaused={false}
                 />
-                <p className="mt-2 text-xs text-blue-300">揭示无严格时间限制，请耐心等待</p>
+                <p className="mt-2 text-xs text-blue-300">揭示有严格时间限制，请耐心等待</p>
+                
+                <div className="mt-3 p-2 bg-blue-800/40 border border-blue-500/30 rounded text-blue-200 text-sm">
+                  <p><span className="font-bold">提示：</span> 对手也需要揭示移动才能确定本回合结果</p>
+                  <p className="mt-1">如果对手超时未揭示，您可以在计时结束后点击<span className="font-bold text-blue-300">游戏控制</span>区域中的<span className="font-bold text-blue-300">超时处理</span>按钮</p>
+                </div>
               </div>
             )}
             
-            {phase === 'waiting_opponent_reveal' && (
-              <div className="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded relative mt-4">
-                <p>对手已揭示移动，请您尽快揭示...</p>
+            {phase === 'both_revealed' && (
+              <div className="text-center bg-blue-900/80 border border-blue-300 text-blue-100 px-4 py-3 rounded relative mt-4 shadow-[0_0_15px_rgba(59,130,246,0.4)]">
+                <p className="mb-2 font-bold">双方均已揭示移动！</p>
+                <p>正在计算回合结果...</p>
+                <p className="mt-2 text-xs text-blue-300">区块链正在处理数据，请稍候</p>
+              </div>
+            )}
+            
+            {/* waiting_opponent_reveal 状态的UI已在上面实现 */}
+            
+            {phase === 'waiting_my_reveal' && (
+              <div className="text-center bg-blue-600/50 border-2 border-blue-300/80 text-blue-100 px-4 py-3 rounded-lg relative mt-4 shadow-[0_0_15px_rgba(59,130,246,0.5)] animate-pulse">
+                <p className="font-bold mb-2">对手已揭示移动！</p>
+                <p className="mb-2">请您尽快揭示您的移动，以确定回合结果</p>
+                <button 
+                  onClick={handleRevealMove}
+                  disabled={loading}
+                  className="mt-2 py-2 px-6 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-md shadow-lg transform hover:scale-105 transition duration-200"
+                >
+                  {loading ? '揭示中...' : '立即揭示移动'}
+                </button>
               </div>
             )}
           </div>
         )}
         
-        <div className="mt-8 border-t border-amber-200 pt-4">
-          <div className="flex justify-between text-sm text-amber-900">
+        <div className="mt-8 border-t border-blue-400/30 pt-4">
+          <div className="flex justify-between text-sm text-blue-200">
             <div>
               <span className="font-bold">游戏ID: </span>
               <span className="font-mono">{game.id}</span>
@@ -1132,7 +1181,7 @@ else if (gameData.state === 0 || gameData.state === 5) {
           
           {/* 游戏控制选项 */}
           <div className="mt-4 border-t border-amber-200 pt-4">
-            <h3 className="text-md font-medieval text-amber-900 mb-3">游戏控制</h3>
+            <h3 className="text-md font-medieval text-blue-200 mb-3">游戏控制</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               
               {/* 取消游戏按钮 - 仅当玩家是创建者且状态为Created时显示 */}
@@ -1149,7 +1198,7 @@ else if (gameData.state === 0 || gameData.state === 5) {
               {game.state === 0 && game.joinDeadline > 0 && isTimeoutByBlockchain(game.joinDeadline) && (
                 <button
                   onClick={handleTimeoutJoin}
-                  className="py-2 px-4 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-sm"
+                  className="py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
                 >
                   超时处理 (加入)
                 </button>
@@ -1192,12 +1241,12 @@ else if (gameData.state === 0 || gameData.state === 5) {
   // 检查用户是否已连接钱包
   if (!isConnected) {
     return (
-      <div className="bg-amber-50 border-2 border-amber-200 rounded-lg p-6 shadow-md max-w-xl mx-auto text-center">
-        <h2 className="text-2xl font-medieval text-amber-900 mb-4">请先连接钱包</h2>
-        <p className="text-amber-800 mb-4">您需要连接钱包才能查看和参与游戏</p>
+      <div className="bg-blue-900/40 backdrop-blur-sm border-2 border-blue-500/30 rounded-lg p-6 shadow-[0_0_15px_rgba(59,130,246,0.3)] max-w-xl mx-auto text-center">
+        <h2 className="text-2xl font-medieval text-blue-200 mb-4">请先连接钱包</h2>
+        <p className="text-blue-300 mb-4">您需要连接钱包才能查看和参与游戏</p>
         <button
           onClick={() => router.push('/')}
-          className="py-2 px-6 rounded-md bg-amber-700 hover:bg-amber-800 text-white font-medieval transition-colors"
+          className="py-2 px-6 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-medieval transition-colors"
         >
           返回首页
         </button>
