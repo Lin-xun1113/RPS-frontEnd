@@ -82,7 +82,7 @@ function Home() {
               </p>
               
               <p className="text-amber-800 text-sm mb-4 leading-relaxed max-w-md mx-auto px-2">
-                每一局对决都将被永久记录在链上，公平透明，不可篡改。使用您的ETH或代币参与游戏，挑战其他玩家，赢取丰厚奖励。
+                每一局对决都将被永久记录在链上，公平透明，不可篡改。使用您的MAG或代币参与游戏，挑战其他玩家，赢取丰厚奖励。
               </p>
             </div>
             
@@ -118,8 +118,8 @@ function Home() {
         >
           <FeatureCard 
             icon="/images/eth-icon.png"
-            title="ETH对战"
-            description="使用以太币进行游戏，赢取对手的投注"
+            title="MAG对战"
+            description="使用Magnet POW链原生代币MAG进行游戏，赢取对手的投注"
           />
           <FeatureCard 
             icon="/images/token-icon.png"

@@ -38,7 +38,7 @@ const ProfilePage = () => {
 
       const withdrawals = await contract.getPendingWithdrawals(address);
       setPendingWithdrawals(withdrawals.toString());
-      console.log('待提取余额:', ethers.utils.formatEther(withdrawals), 'ETH');
+      console.log('待提取余额:', ethers.utils.formatEther(withdrawals), 'MAG');
 
     } catch (error) {
       console.error('获取待提取余额失败:', error.message);
@@ -138,7 +138,7 @@ const ProfilePage = () => {
               <div>
                 <p className="text-gray-600 text-sm mb-1">待提取奖励</p>
                 <p className="text-lg font-semibold">
-                  {isLoading ? '加载中...' : `${ethers.utils.formatEther(pendingWithdrawals)} ETH`}
+                  {isLoading ? '加载中...' : `${ethers.utils.formatEther(pendingWithdrawals)} MAG`}
                 </p>
               </div>
               

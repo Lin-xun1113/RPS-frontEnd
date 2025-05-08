@@ -19,7 +19,7 @@ export default function Rules() {
           <div className="bg-amber-50/90 p-6 rounded-lg shadow-inner">
             <h2 className="text-2xl font-medieval text-amber-900 mb-6">游戏介绍</h2>
             <p className="text-amber-800 mb-4">
-              石头剪刀布是一款基于区块链的多回合对战游戏，采用特殊的提交-揭示机制确保公平性。玩家可以使用ETH或代币进行游戏，胜利者将获得奖励。
+              石头剪刀布是一款基于区块链的多回合对战游戏，采用特殊的提交-揭示机制确保公平性。玩家可以使用MAG或代币进行游戏，胜利者将获得奖励。
             </p>
             
             <div className="flex justify-center gap-16 my-8">
@@ -61,8 +61,8 @@ export default function Rules() {
             <div className="mb-6">
               <h3 className="text-xl font-medieval text-amber-800 mb-2">游戏模式</h3>
               <ul className="list-disc pl-5 space-y-1 text-amber-800">
-                <li>游戏支持两种模式：ETH模式和代币模式。</li>
-                <li>ETH模式：玩家使用ETH作为投注，赢家获得总投注额的98%（2%为平台费用）。</li>
+                <li>游戏支持两种模式：MAG模式和代币模式。</li>
+                <li>MAG模式：玩家使用MAG作为投注，赢家获得总投注额的90%（10%为平台费用）。</li>
                 <li>代币模式：玩家使用WinningToken代币投注，赢家获得全部代币。</li>
               </ul>
             </div>
@@ -71,7 +71,7 @@ export default function Rules() {
               <h3 className="text-xl font-medieval text-amber-800 mb-2">游戏创建与加入</h3>
               <ul className="list-disc pl-5 space-y-1 text-amber-800">
                 <li>玩家A创建游戏，设置回合数（必须是奇数）、超时时间和投注金额。</li>
-                <li>玩家B加入游戏，投入相同金额的ETH或代币。</li>
+                <li>玩家B加入游戏，投入相同金额的MAG或代币。</li>
                 <li>如果没有玩家加入，创建者可在超时后取消游戏并取回投注。</li>
               </ul>
             </div>
@@ -100,7 +100,7 @@ export default function Rules() {
               <ul className="list-disc pl-5 space-y-1 text-amber-800">
                 <li>游戏在一方获得足够的胜利回合数后结束。</li>
                 <li>胜利者需要手动调用<code>withdrawPrize</code>函数提取奖励。</li>
-                <li>ETH游戏的胜利者将获得总投注额的98%，以及WinningToken代币。</li>
+                <li>MAG游戏的胜利者将获得总投注额的90%，以及WinningToken代币。</li>
                 <li>代币游戏的胜利者将获得双方的代币。</li>
               </ul>
             </div>

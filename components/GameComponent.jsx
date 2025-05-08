@@ -522,7 +522,7 @@ else if (gameData.state === 0 || gameData.state === 5) {
       let tx;
       if (game.gameType === 'eth') {
         // 加入ETH游戏
-        toast.loading('正在加入ETH游戏...', { id: 'joinGame' });
+        toast.loading('正在加入MAG游戏...', { id: 'joinGame' });
         
         tx = await contract.joinGameWithEth(gameId, {
           value: game.betAmount // 使用与创建者相同的押注金额
@@ -1126,7 +1126,7 @@ else if (gameData.state === 0 || gameData.state === 5) {
             </div>
             <div>
               <span className="font-bold">投注: </span>
-              <span>{ethers.utils.formatEther(game.betAmount)} ETH</span>
+              <span>{ethers.utils.formatEther(game.betAmount)} MAG</span>
             </div>
           </div>
           

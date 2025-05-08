@@ -379,7 +379,7 @@ const GameHistoryCard = ({ game, address }) => {
         
         <div className="flex items-center">
           <div className={`px-3 py-1 rounded-full text-sm font-medieval ${game.gameType === 'eth' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}`}>
-            {game.gameType === 'eth' ? 'ETH游戏' : '代币游戏'}
+            {game.gameType === 'eth' ? 'MAG游戏' : '代币游戏'}
           </div>
           <div className={`ml-2 px-3 py-1 rounded-full text-sm font-medieval ${resultStyle}`}>
             {resultText}
@@ -399,7 +399,7 @@ const GameHistoryCard = ({ game, address }) => {
             <div className="mt-1">
               <span className="text-amber-800 font-medieval">投注金额:</span>
               <span className="ml-2 font-mono text-sm">
-                {ethers.utils.formatEther(game.betAmount)} ETH
+                {ethers.utils.formatEther(game.betAmount)} MAG
               </span>
             </div>
           )}

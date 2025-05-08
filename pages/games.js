@@ -471,7 +471,7 @@ function GamesWithoutLayout() {
         } else {
           // ETH游戏使用joinGameWithEth函数，需要发送相同金额的ETH
           tx = await signerContract.joinGameWithEth(gameId, { value: bet });
-          console.log('加入ETH游戏:', gameId, '下注:', ethers.utils.formatEther(bet), 'ETH');
+          console.log('加入MAG游戏:', gameId, '下注:', ethers.utils.formatEther(bet), 'MAG');
         }
         
         // 等待交易确认
@@ -555,7 +555,7 @@ function GamesWithoutLayout() {
               ? 'bg-blue-100 text-blue-800' 
               : 'bg-purple-100 text-purple-800'
           }`}>
-            {game.gameType === 'eth' ? 'ETH游戏' : '代币游戏'}
+            {game.gameType === 'eth' ? 'MAG游戏' : '代币游戏'}
           </div>
         </div>
         
@@ -568,7 +568,7 @@ function GamesWithoutLayout() {
             <div className="flex justify-between mb-2">
               <span className="text-amber-700">投注金额:</span>
               <span className="font-medium text-amber-900">
-                {formattedBet} ETH
+                {formattedBet} MAG
               </span>
             </div>
           )}
@@ -811,7 +811,7 @@ function GamesWithoutLayout() {
                     active={filter === 'eth'}
                     onClick={() => setFilter('eth')}
                   >
-                    ETH游戏
+                    MAG游戏
                   </FilterButton>
                   <FilterButton 
                     active={filter === 'token'}
@@ -880,7 +880,7 @@ function GamesWithoutLayout() {
               {/* 游戏数量显示 */}
               {!loading && games.length > 0 && (
                 <div className="text-center mt-8 text-amber-700 text-sm">
-                  当前显示 {games.length} 个{filter !== 'all' ? (filter === 'eth' ? 'ETH' : '代币') : ''}游戏
+                  当前显示 {games.length} 个{filter !== 'all' ? (filter === 'eth' ? 'MAG' : '代币') : ''}游戏
                 </div>
               )}
             </div>

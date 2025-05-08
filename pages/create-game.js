@@ -79,14 +79,14 @@ export default function CreateGame() {
       if (gameType === 'eth') {
         // 检查ETH余额
         if (balance && ethers.utils.parseEther(betAmount).gt(balance.value)) {
-          toast.error('ETH余额不足');
-          setError('ETH余额不足');
+          toast.error('MAG余额不足');
+          setError('MAG余额不足');
           setIsCreating(false);
           return;
         }
         
         // 创建ETH游戏
-        toast.loading('正在创建ETH游戏...', { id: 'createGame' });
+        toast.loading('正在创建MAG游戏...', { id: 'createGame' });
         // 参数顺序为：totalTurns, timeoutInterval, timeoutCommit
         tx = await contract.createGameWithEth(totalTurns, timeoutInterval, timeoutCommit, {
           value: ethers.utils.parseEther(betAmount)
@@ -225,7 +225,7 @@ export default function CreateGame() {
                   active={gameType === 'eth'}
                   onClick={() => setGameType('eth')}
                   icon="/images/eth-icon.png"
-                  label="ETH游戏"
+                  label="MAG游戏"
                 />
                 <GameTypeButton 
                   active={gameType === 'token'}
@@ -300,7 +300,7 @@ export default function CreateGame() {
             
             {gameType === 'eth' && (
               <div className="mb-8">
-                <label className="block text-amber-800 font-medieval mb-2">投注金额 (ETH)</label>
+                <label className="block text-amber-800 font-medieval mb-2">投注金额 (MAG)</label>
                 <div className="relative">
                   <input
                     type="number"
@@ -343,7 +343,7 @@ export default function CreateGame() {
           <ul className="list-disc pl-5 space-y-2 text-amber-800">
             <li>回合数必须是奇数，这样可以保证游戏有胜负结果。</li>
             <li>超时时间表示每回合的移动提交和揭示阶段的最长等待时间。</li>
-            <li>ETH游戏：双方投注相同金额的ETH，赢家获得总投注额的98%（2%为平台费用）。</li>
+            <li>ETH游戏：双方投注相同金额的MAG，赢家获得总投注额的90%（10%为平台费用）。</li>
             <li>代币游戏：双方各投入1个WinningToken代币，赢家获得全部2个代币。</li>
             <li>游戏结束后，胜利者需要手动提取奖励。</li>
           </ul>
