@@ -35,6 +35,7 @@ export default function GameComponent() {
   const [refreshInterval, setRefreshInterval] = useState(null);
   const [lastRefresh, setLastRefresh] = useState(Date.now());
   const [blockchainTime, setBlockchainTime] = useState(0);
+  const [blockchainTimeInterval, setBlockchainTimeInterval] = useState(null);
   
   // 新增: 状态锁定机制，防止界面频繁切换
   const [phaseLocked, setPhaseLocked] = useState(false);
@@ -76,7 +77,18 @@ export default function GameComponent() {
   useEffect(() => {
     // 启动时获取游戏数据
     if (isConnected && contract && gameId) {
-      fetchGameDetails();
+      // 立即获取区块链时间和游戏详情
+      fetchBlockchainTime().then(() => {
+        fetchGameDetails();
+      });
+      
+      // 定期更新区块链时间 - 每10秒更新一次
+      const blockchainTimeIntervalId = setInterval(() => {
+        fetchBlockchainTime();
+      }, 10000);
+      
+      // 保存计时器ID供清理使用
+      setBlockchainTimeInterval(blockchainTimeIntervalId);
       
       // 智能刷新机制 - 根据游戏状态调整刷新频率
       const getRefreshRate = () => {
@@ -108,13 +120,17 @@ export default function GameComponent() {
       }
     }
     
-    // 清理定时器
+    // 清理函数
     return () => {
       if (refreshInterval) {
         clearInterval(refreshInterval);
       }
+      if (blockchainTimeInterval) {
+        clearInterval(blockchainTimeInterval);
+      }
+      console.log('游戏组件定时器已清理');
     };
-  }, [gameId, isConnected, contract, address, phaseLocked, actionTaken, phase]);
+  }, [isConnected, contract, gameId, phase, phaseLocked, actionTaken, fetchBlockchainTime]);
   
   // 回合变化时重置选择的移动
   useEffect(() => {
@@ -515,6 +531,21 @@ else if (gameData.state === 0 || gameData.state === 5) {
     }
   }
 }
+  };
+  
+  // 检查是否超时
+  const isTimeoutExpired = (deadline) => {
+    if (!deadline) return false;
+    if (!provider) return false;
+    
+    // 使用直接对比，因为这个函数会被频繁调用
+    try {
+      const now = Math.floor(Date.now() / 1000);
+      return deadline <= now;
+    } catch (error) {
+      console.error('检查超时状态失败:', error);
+      return false;
+    }
   };
   
   // 加入游戏功能
@@ -1067,6 +1098,18 @@ else if (gameData.state === 0 || gameData.state === 5) {
             </div>
           )}
           
+          {phase === 'waiting_my_reveal' && (
+            <div className="bg-yellow-900/60 border border-yellow-400/60 text-yellow-200 px-4 py-3 rounded relative shadow-[0_0_10px_rgba(234,179,8,0.3)]">
+              <p className="text-lg font-bold mb-2">对手已揭示移动!</p>
+              <p className="mb-2">请尽快揭示您的移动以完成本回合</p>
+              <CountdownTimer 
+                deadline={game.revealDeadline} 
+                onTimeout={() => console.log('揭示阶段超时')} 
+                isPaused={false}
+              />
+            </div>
+          )}
+          
           {phase === 'results' && (
             <div className="bg-indigo-900/50 border border-indigo-400/50 text-indigo-200 px-4 py-3 rounded relative shadow-[0_0_10px_rgba(99,102,241,0.4)]">
               回合结果计算中...
@@ -1085,32 +1128,49 @@ else if (gameData.state === 0 || gameData.state === 5) {
           )}
         </div>
         
-        {(phase === 'commit' || phase === 'reveal') && (
+        {(phase === 'commit' || phase === 'reveal' || phase === 'waiting_my_reveal') && (
           <div className="mb-6">
-            <h3 className="text-xl font-medieval text-blue-400 mb-4 text-center">
-              {phase === 'commit' ? '选择你的移动' : '你选择的移动'}
-            </h3>
-            
-            <MoveSelector 
-              selectedMove={selectedMove} 
-              onSelectMove={handleSelectMove} 
-              disabled={phase === 'reveal' && playerHasRevealed()}
-            />
-            {phase === 'commit' && (
-              <div className="text-center">
-                <button
-                  onClick={handleCommitMove}
-                  disabled={!selectedMove || loading}
-                  className={`py-2 px-6 rounded-md ${!selectedMove || loading 
-                    ? 'bg-gray-400 cursor-not-allowed' 
-                    : 'bg-blue-600 hover:bg-blue-700'} text-white font-medieval transition-colors`}
-                >
-                  {loading ? '提交中...' : '提交移动'}
-                </button>
+            {/* 检查提交阶段是否超时 */}
+            {phase === 'commit' && isTimeoutByBlockchain(game.commitDeadline) ? (
+              <div className="bg-red-900/60 border border-red-400/60 text-red-200 px-4 py-3 rounded relative shadow-[0_0_10px_rgba(220,38,38,0.3)] text-center">
+                <p className="text-lg font-bold mb-2">提交移动已超时!</p>
+                <p className="mb-2">您可以等待对手操作或使用超时处理功能</p>
+                <p className="text-sm">超时处理按钮在下方游戏控制区域</p>
               </div>
+            ) : phase === 'reveal' && isTimeoutByBlockchain(game.revealDeadline) ? (
+              <div className="bg-red-900/60 border border-red-400/60 text-red-200 px-4 py-3 rounded relative shadow-[0_0_10px_rgba(220,38,38,0.3)] text-center">
+                <p className="text-lg font-bold mb-2">揭示移动已超时!</p>
+                <p className="mb-2">您可以等待对手操作或使用超时处理功能</p>
+                <p className="text-sm">超时处理按钮在下方游戏控制区域</p>
+              </div>
+            ) : (
+              <>
+                <h3 className="text-xl font-medieval text-blue-400 mb-4 text-center">
+                  {phase === 'commit' ? '选择你的移动' : '你选择的移动'}
+                </h3>
+                
+                <MoveSelector 
+                  selectedMove={selectedMove} 
+                  onSelectMove={handleSelectMove} 
+                  disabled={phase === 'reveal' && playerHasRevealed()}
+                />
+                {phase === 'commit' && !isTimeoutByBlockchain(game.commitDeadline) && (
+                  <div className="text-center">
+                    <button
+                      onClick={handleCommitMove}
+                      disabled={!selectedMove || loading}
+                      className={`py-2 px-6 rounded-md ${!selectedMove || loading 
+                        ? 'bg-gray-400 cursor-not-allowed' 
+                        : 'bg-blue-600 hover:bg-blue-700'} text-white font-medieval transition-colors`}
+                    >
+                      {loading ? '提交中...' : '提交移动'}
+                    </button>
+                  </div>
+                )}
+              </>
             )}
             
-            {phase === 'reveal' && !playerHasRevealed() && (
+            {(phase === 'reveal' || phase === 'waiting_my_reveal') && !playerHasRevealed() && !isTimeoutByBlockchain(game.revealDeadline) && (
               <div className="text-center">
                 <button
                   onClick={handleRevealMove}
@@ -1151,19 +1211,7 @@ else if (gameData.state === 0 || gameData.state === 5) {
             
             {/* waiting_opponent_reveal 状态的UI已在上面实现 */}
             
-            {phase === 'waiting_my_reveal' && (
-              <div className="text-center bg-blue-600/50 border-2 border-blue-300/80 text-blue-100 px-4 py-3 rounded-lg relative mt-4 shadow-[0_0_15px_rgba(59,130,246,0.5)] animate-pulse">
-                <p className="font-bold mb-2">对手已揭示移动！</p>
-                <p className="mb-2">请您尽快揭示您的移动，以确定回合结果</p>
-                <button 
-                  onClick={handleRevealMove}
-                  disabled={loading}
-                  className="mt-2 py-2 px-6 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-md shadow-lg transform hover:scale-105 transition duration-200"
-                >
-                  {loading ? '揭示中...' : '立即揭示移动'}
-                </button>
-              </div>
-            )}
+            {/* 移除重复的waiting_my_reveal状态提示框和按钮，因为已经在顶部有提示 */}
           </div>
         )}
         
