@@ -9,7 +9,7 @@ import Head from 'next/head';
 import dynamic from 'next/dynamic';
 
 // 合约ABI和地址
-import { ROCK_PAPER_SCISSORS_ADDRESS, ABI, GAME_STATES, NETWORK } from '../constants/contractInfo';
+import { ROCK_PAPER_SCISSORS_ADDRESS, WINNING_TOKEN_ADDRESS, ABI, GAME_STATES, NETWORK } from '../constants/contractInfo';
 
 // 安全的客户端组件包装器
 const SafeHydrate = ({ children }) => {
@@ -431,12 +431,41 @@ function GamesWithoutLayout() {
       const game = games.find(g => g.id === gameId);
       const isTokenGame = game?.gameType === 'token';
 
-      toast.loading('正在加入游戏...', { id: 'join-game' });
+      toast.loading('正在准备加入游戏...', { id: 'join-game' });
       let tx;
       
       try {
         if (isTokenGame) {
-          // 代币游戏使用joinGameWithToken函数
+          // 如果是代币游戏，需要先授权代币使用
+          try {
+            // 创建代币合约实例
+            const tokenContract = new ethers.Contract(
+              WINNING_TOKEN_ADDRESS,
+              [
+                'function approve(address spender, uint256 amount) external returns (bool)',
+                'function allowance(address owner, address spender) external view returns (uint256)'
+              ],
+              signer
+            );
+            
+            // 检查当前授权额度
+            const address = await signer.getAddress();
+            const allowance = await tokenContract.allowance(address, ROCK_PAPER_SCISSORS_ADDRESS);
+            
+            // 如果授权额度不足，需要请求授权
+            if (allowance.lt(1)) {
+              toast.loading('正在授权代币...', { id: 'join-game' });
+              const approveTx = await tokenContract.approve(ROCK_PAPER_SCISSORS_ADDRESS, 1);
+              await approveTx.wait();
+              toast.loading('授权成功，正在加入游戏...', { id: 'join-game' });
+            }
+          } catch (approveError) {
+            console.error('[生产环境错误] 代币授权失败:', approveError);
+            toast.error(`代币授权失败: ${approveError.message.slice(0, 50)}...`, { id: 'join-game' });
+            return;
+          }
+          
+          // 授权成功后加入代币游戏
           tx = await signerContract.joinGameWithToken(gameId);
           console.log('加入代币游戏:', gameId);
         } else {
