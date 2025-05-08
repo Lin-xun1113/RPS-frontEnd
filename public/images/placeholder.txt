@@ -1,0 +1,21 @@
+这个目录包含Web3石头剪刀布游戏所需的图像资源：
+
+- logo-scroll.png - 游戏logo
+- game-title.png - 游戏标题图
+- parchment-bg.png - 羊皮纸背景
+- scroll-wide.png - 宽卷轴背景
+- scroll-center.png - 中央卷轴背景
+- battle-bg.png - 战斗背景
+- rock.png - 石头手势图标
+- paper.png - 布手势图标
+- scissors.png - 剪刀手势图标
+- eth-icon.png - ETH图标
+- token-icon.png - 代币图标
+- secure-icon.png - 安全图标
+- music-on.png - 音乐开启图标
+- music-off.png - 音乐关闭图标
+- game-icon.png - 游戏图标
+- win-icon.png - 胜利图标
+- rate-icon.png - 比率图标
+
+注意：实际部署时需要替换为设计师制作的正式图像资源。

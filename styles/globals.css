@@ -1,0 +1,95 @@
+@import url('https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 120, 53, 15;
+  --background-rgb: 255, 251, 235;
+  --battle-foreground-rgb: 191, 219, 254;
+  --battle-background-rgb: 17, 24, 39;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+  font-family: 'MedievalSharp', cursive;
+}
+
+/* 战斗模式全局样式 */
+body.battle-mode {
+  color: rgb(var(--battle-foreground-rgb));
+  background: rgb(var(--battle-background-rgb));
+  transition: background-color 0.5s ease-in-out;
+}
+
+/* 战斗模式特效 */
+.battle-page {
+  position: relative;
+  overflow: hidden;
+}
+
+.battle-page::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at center, rgba(59, 130, 246, 0.2) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* u6587u672cu9634u5f71u548cu53d1u5149u6548u679cu9879 */
+.text-shadow {
+  text-shadow: 0 0 5px rgba(59, 130, 246, 0.7);
+}
+
+.text-shadow-lg {
+  text-shadow: 0 0 8px rgba(59, 130, 246, 0.9);
+}
+
+.glow-blue {
+  filter: drop-shadow(0 0 5px rgba(59, 130, 246, 0.7));
+}
+
+.glow-cyan {
+  filter: drop-shadow(0 0 5px rgba(14, 165, 233, 0.7));
+}
+
+.battle-text {
+  @apply text-blue-300 font-medieval text-shadow;
+}
+
+.battle-heading {
+  @apply text-blue-200 font-medieval text-shadow-lg;
+}
+
+@layer components {
+  .btn-primary {
+    @apply py-2 px-4 bg-gradient-to-r from-blue-700 to-indigo-900 text-blue-100 font-medieval rounded border-2 border-blue-600 shadow-md hover:shadow-blue-700/30 transition-all duration-300;
+  }
+  
+  .btn-secondary {
+    @apply py-2 px-4 bg-blue-900/80 text-blue-200 font-medieval rounded border border-blue-700 hover:bg-blue-800/90 transition-all duration-300;
+  }
+  
+  /* 战斗模式按钮 */
+  .btn-battle-primary {
+    @apply py-2 px-6 bg-gradient-to-r from-blue-800 to-indigo-900 text-blue-100 font-medieval rounded border-2 border-blue-500 shadow-md hover:shadow-blue-500/30 transition-all duration-300;
+  }
+  
+  .btn-battle-secondary {
+    @apply py-2 px-4 bg-blue-900/40 text-blue-200 font-medieval rounded border border-blue-500/30 hover:bg-blue-800/60 transition-all duration-300;
+  }
+  
+  .scroll-bg {
+    @apply bg-[url('/images/scroll-wide.png')] bg-contain bg-center bg-no-repeat;
+  }
+  
+  .battle-bg {
+    @apply bg-[url('/images/battle-bg.png')] bg-cover bg-center;
+  }
+}
