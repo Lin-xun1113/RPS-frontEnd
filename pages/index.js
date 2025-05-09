@@ -124,9 +124,10 @@ function Home() {
       
       {/* 主要内容容器 - 支持视差效果 */}
       <div 
-        className="flex flex-col items-center justify-center min-h-[70vh] relative"
+        className="flex flex-col items-center justify-center min-h-[70vh] relative w-full overflow-hidden"
         style={{ 
-          transform: `translateY(${scrollY * 0.1}px)` // 轻微的视差效果
+          transform: `translateY(${scrollY * 0.1}px)`, // 轻微的视差效果
+          maxWidth: "100vw"
         }}
       >
         {/* 标题区域 */}
