@@ -91,11 +91,8 @@ const ProfilePage = () => {
 
   if (!isConnected) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 shadow-md">
-          <h2 className="text-2xl font-medieval text-amber-900 mb-4">我的账户</h2>
-          <p className="text-amber-800">请连接钱包以查看您的个人信息和奖励。</p>
-        </div>
+      <div className="text-center py-20">
+        <h2 className="text-2xl font-medieval text-amber-900 mb-6">请先连接钱包以查看您的个人账户</h2>
       </div>
     );
   }
