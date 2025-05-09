@@ -15,6 +15,58 @@ body {
   color: rgb(var(--foreground-rgb));
   background: rgb(var(--background-rgb));
   font-family: 'MedievalSharp', cursive;
+  overflow-x: hidden;
+}
+
+/* 主页特效动画 */
+@keyframes floatParticle {
+  0% {
+    transform: translateY(0) translateX(0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.5;
+  }
+  80% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: translateY(-100vh) translateX(20px);
+    opacity: 0;
+  }
+}
+
+/* 视差效果样式 */
+.scroll-trigger {
+  transform-style: preserve-3d;
+  perspective: 1000px;
+}
+
+/* 点击波纹效果 */
+@keyframes ripple {
+  0% {
+    transform: scale(0);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* 模拟羊皮纸纹理 */
+.parchment-texture {
+  background-image: url('/images/parchment-bg.png');
+  background-size: cover;
+  position: relative;
+}
+
+.parchment-texture::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 251, 235, 0.1);
+  pointer-events: none;
 }
 
 /* 战斗模式全局样式 */
@@ -87,6 +139,40 @@ body.battle-mode {
   
   .scroll-bg {
     @apply bg-[url('/images/scroll-wide.png')] bg-contain bg-center bg-no-repeat;
+    position: relative;
+    overflow: hidden;
+  }
+  
+  /* 卷轴效果优化 */
+  .scroll-bg::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(to bottom, rgba(255, 248, 220, 0.1), rgba(255, 240, 200, 0.15), rgba(255, 248, 220, 0.1));
+    pointer-events: none;
+  }
+  
+  /* 纸张纹理效果 */
+  .scroll-texture {
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .scroll-texture::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url("/images/paper-texture.png");
+    background-repeat: repeat;
+    opacity: 0.08;
+    pointer-events: none;
+    mix-blend-mode: multiply;
   }
   
   .battle-bg {

@@ -82,7 +82,7 @@ function Home() {
   if (!mounted) {
     return (
       <Layout>
-        <div className="flex flex-col items-center justify-center min-h-[70vh]">
+        <div className="container mx-auto px-4 py-6 min-h-screen flex justify-center min-h-[70vh]">
           <div className="text-center mb-12"></div>
           <div className="relative w-full max-w-2xl mx-auto my-8" style={{ minHeight: '400px' }}></div>
         </div>
@@ -189,15 +189,26 @@ function Home() {
           style={{ minHeight: '500px' }}
           ref={scrollRef}
         >
-          {/* 羊皮纸背景 - 简化版本 */}
-          <div 
-            className="absolute inset-0 bg-[url('/images/scroll-center.png')] bg-contain bg-center bg-no-repeat" 
+          {/* 羊皮纸背景 */}
+          <motion.div 
+            initial={{ scale: 1.1 }}
+            animate={{ scale: 1.2 }}
+            transition={{ duration: 1.2, ease: "easeOut" }}
+            className="absolute inset-0 bg-[url('/images/scroll-center.png')] bg-contain bg-center bg-no-repeat scroll-bg scroll-texture" 
             style={{
-              transform: 'scale(2)',
-              margin: '0 auto'
+              margin: '0 auto',
+              filter: 'drop-shadow(0 10px 15px rgba(0, 0, 0, 0.08))'
             }}
           >
-          </div>
+            {/* 羊皮纸阴影和立体效果 */}
+            <div className="absolute inset-0 shadow-[inset_0_0_40px_rgba(0,0,0,0.05)] pointer-events-none rounded-3xl overflow-hidden"></div>
+            
+            {/* 卷轴装饰元素 */}
+            <div className="absolute top-3 left-3 w-6 h-6 border-t-2 border-l-2 border-amber-700/20 rounded-tl-lg opacity-60"></div>
+            <div className="absolute top-3 right-3 w-6 h-6 border-t-2 border-r-2 border-amber-700/20 rounded-tr-lg opacity-60"></div>
+            <div className="absolute bottom-3 left-3 w-6 h-6 border-b-2 border-l-2 border-amber-700/20 rounded-bl-lg opacity-60"></div>
+            <div className="absolute bottom-3 right-3 w-6 h-6 border-b-2 border-r-2 border-amber-700/20 rounded-br-lg opacity-60"></div>
+          </motion.div>
           
           {/* 内容区域 */}
           <div className="relative z-10 w-full h-full flex flex-col justify-center items-center" style={{ padding: '0 15%', paddingTop: '3%' }}>
@@ -225,7 +236,7 @@ function Home() {
                     transition={{ duration: 0.3, delay: 1.3 }}
                     className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-amber-800 rounded-full"
                   />
-                </div>
+                </motion.div>
               </motion.div>
               
               {/* 文字内容区 */}
@@ -242,7 +253,7 @@ function Home() {
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.5, delay: 1.7 }}
                   className="text-amber-800 text-sm md:text-base mb-4 leading-relaxed mx-auto"
-                  style={{ maxWidth: '70%' }}
+                  style={{ maxWidth: '85%' }}
                 >
                   欢迎来到石头剪刀布的奇幻世界。在这里，古老的对决与现代区块链技术相结合，为您带来前所未有的游戏体验。
                 </motion.p>
@@ -252,72 +263,58 @@ function Home() {
                   animate={{ opacity: 1 }}
                   transition={{ duration: 0.5, delay: 1.9 }}
                   className="text-amber-800 text-sm md:text-base mb-4 leading-relaxed mx-auto"
-                  style={{ maxWidth: '70%' }}
+                  style={{ maxWidth: '85%' }}
                 >
                   每一局对决都将被永久记录在链上，公平透明，不可篡改。使用您的MAG或代币参与游戏，挑战其他玩家，赢取丰厚奖励。
                 </motion.p>
                 
-                {/* 石头剪刀布图标动画 - 放大并增强效果 */}
+                {/* 石头剪刀布图标动画 - 缩小尺寸 */}
                 <motion.div 
                   initial={{ scale: 0.8, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   transition={{ duration: 0.7, delay: 2.1 }}
-                  className="flex justify-center space-x-8 my-6"
+                  className="flex justify-center space-x-3 my-4"
                 >
-                  <div className="w-16 h-16 md:w-20 md:h-20 relative group cursor-pointer">
+                  <div className="w-10 h-10 relative group">
                     <motion.div 
-                      whileHover={{ rotate: 15, scale: 1.15, y: -5 }}
-                      whileTap={{ scale: 0.95 }}
-                      transition={{ type: 'spring', stiffness: 300, damping: 15 }}
-                      className="drop-shadow-md hover:drop-shadow-xl"
+                      whileHover={{ rotate: 15, scale: 1.1 }}
+                      transition={{ type: 'spring', stiffness: 300 }}
                     >
                       <Image src="/images/rock.png" fill style={{objectFit: 'contain'}} alt="石头" />
-                      {/* 悬停时的光晕效果 */}
-                      <div className="absolute inset-0 bg-amber-500/10 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl" />
                     </motion.div>
                   </div>
-                  
-                  <div className="w-16 h-16 md:w-20 md:h-20 relative group cursor-pointer">
+                  <div className="w-10 h-10 relative group">
                     <motion.div 
-                      whileHover={{ rotate: -10, scale: 1.15, y: -5 }}
-                      whileTap={{ scale: 0.95 }}
-                      transition={{ type: 'spring', stiffness: 300, damping: 15 }}
-                      className="drop-shadow-md hover:drop-shadow-xl"
+                      whileHover={{ rotate: -10, scale: 1.1 }}
+                      transition={{ type: 'spring', stiffness: 300 }}
                     >
                       <Image src="/images/scissors.png" fill style={{objectFit: 'contain'}} alt="剪刀" />
-                      <div className="absolute inset-0 bg-amber-500/10 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl" />
                     </motion.div>
                   </div>
-                  
-                  <div className="w-16 h-16 md:w-20 md:h-20 relative group cursor-pointer">
+                  <div className="w-10 h-10 relative group">
                     <motion.div 
-                      whileHover={{ rotate: 10, scale: 1.15, y: -5 }}
-                      whileTap={{ scale: 0.95 }}
-                      transition={{ type: 'spring', stiffness: 300, damping: 15 }}
-                      className="drop-shadow-md hover:drop-shadow-xl"
+                      whileHover={{ rotate: 10, scale: 1.1 }}
+                      transition={{ type: 'spring', stiffness: 300 }}
                     >
                       <Image src="/images/paper.png" fill style={{objectFit: 'contain'}} alt="布" />
-                      <div className="absolute inset-0 bg-amber-500/10 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl" />
                     </motion.div>
                   </div>
                 </motion.div>
               </div>
             </div>
             
-            {/* 底部签名区 - 升级设计 */}
+            {/* 底部签名区 - 调整大小和间距 */}
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 2.3 }}
-              className="text-center mt-8 mb-4"
+              className="text-center mt-auto mb-2"
+              style={{ marginTop: 'auto' }}
             >
-              {/* 装饰性印章和分隔线 */}
-              <div className="relative h-5 mb-3">
-                <div className="border-t border-amber-800/40 w-48 mx-auto"></div>
-                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-8 h-8">
-                  <div className="w-2 h-2 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-amber-800/30 rounded-full"></div>
-                  <div className="w-4 h-4 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 border border-amber-800/30 rounded-full"></div>
-                </div>
+              {/* 分隔线 */}
+              <div className="relative h-3 mb-2 mt-1">
+                <div className="border-t border-amber-700 w-28 mx-auto"></div>
+                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1 h-1 bg-amber-800/50 rounded-full"></div>
               </div>
               
               <motion.p
@@ -342,17 +339,17 @@ function Home() {
                 className="relative scale-90"
                 style={{ transform: 'scale(0.9)' }}
               >
-                  {!isConnected ? (
+                {!isConnected ? (
                   <div>
-                      <ClientOnlyWallet type="button" />
-                    </div>
-                  ) : (
-                    <ClientOnlyWallet 
-                      type="button"
-                      gameButton
-                      onGameEnter={handleExploreGames}
-                    />
-                  )}
+                    <ClientOnlyWallet type="button" />
+                  </div>
+                ) : (
+                  <ClientOnlyWallet 
+                    type="button"
+                    gameButton
+                    onGameEnter={handleExploreGames}
+                  />
+                )}
                 
                 {/* 特效光晕 */}
                 <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-32 h-0.5 bg-gradient-to-r from-transparent via-amber-300/20 to-transparent blur-sm"></div>
