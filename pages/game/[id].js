@@ -13,13 +13,15 @@ const BattleLayout = ({ children }) => {
   
   useEffect(() => {
     setMounted(true);
-    // 添加深色背景类到body
-    document.body.classList.add('battle-mode');
-    
-    // 清理函数
-    return () => {
-      document.body.classList.remove('battle-mode');
-    };
+    // 添加深色背景类到body - 仅在客户端环境执行
+    if (typeof window !== 'undefined') {
+      document.body.classList.add('battle-mode');
+      
+      // 清理函数
+      return () => {
+        document.body.classList.remove('battle-mode');
+      };
+    }
   }, []);
   
   if (!mounted) {
