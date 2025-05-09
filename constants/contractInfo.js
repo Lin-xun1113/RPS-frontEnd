@@ -81,6 +81,13 @@ export const ABI = [
   // 游戏管理函数
   "function cancelGame(uint256 _gameId) external",
 
+  // 管理员函数
+  "function adminAddress() external view returns (address)",
+  "function setAdmin(address _newAdmin) external",
+  "function withdrawFees(uint256 _amount) external",
+  "function withdrawAllFunds(uint256 _amount) external",
+  "function accumulatedFees() external view returns (uint256)",
+
   // 读取函数
   "function games(uint256) external view returns (address playerA, address playerB, uint256 bet, uint256 timeoutInterval, uint256 revealDeadline, uint256 creationTime, uint256 joinDeadline, uint256 totalTurns, uint256 currentTurn, bytes32 commitA, bytes32 commitB, uint8 moveA, uint8 moveB, uint8 scoreA, uint8 scoreB, uint8 state, uint256 timeoutCommit, uint256 commitDeadline)",
  

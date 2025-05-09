@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import Image from 'next/image';
 import ClientOnlyWallet from './ClientOnlyWallet';
+import AdminNavLink from './AdminNavLink';
 import dynamic from 'next/dynamic';
 
 const Layout = ({ children }) => {
@@ -58,6 +59,7 @@ const Layout = ({ children }) => {
               <NavLink href="/rules">游戏规则</NavLink>
               <NavLink href="/history">历史记录</NavLink>
               <NavLink href="/profile">个人账户</NavLink>
+              <AdminNavLink />
             </nav>
             
             <ClientOnlyWallet />

@@ -91,7 +91,8 @@ export default function Rules() {
               <h3 className="text-xl font-medieval text-amber-800 mb-2">超时机制</h3>
               <ul className="list-disc pl-5 space-y-1 text-amber-800">
                 <li>加入超时：如果创建游戏后无人在期限内加入，创建者可调用<code>timeoutJoin</code>并取回投注。</li>
-                <li>揭示超时：如果对手在提交移动后未在期限内揭示，可调用<code>timeoutReveal</code>函数，该回合系统判定诚实玩家胜出。</li>
+                <li>提交超时：如果对手未在期限内提交，可调用<code>超时处理（提交）</code>功能，该游戏系统判定守规玩家直接胜出。</li>                
+                <li>揭示超时：如果对手在提交移动后未在期限内揭示，可调用<code>超时处理（揭示）</code>功能，该游戏系统判定守规玩家直接胜出。</li>
               </ul>
             </div>
             

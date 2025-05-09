@@ -1252,14 +1252,21 @@ else if (gameData.state === 0 || gameData.state === 5) {
                 </button>
               )}
               
-              {/* 揭示超时按钮 - 当在Committed状态，且revealDeadline已过期时显示 */}
+              {/* 揭示超时按钮 - 当在Committed状态，且满足下列条件时显示：
+                  1. revealDeadline已过期
+                  2. 玩家已揭示移动
+                  3. 对手未揭示移动 
+              */}
               {game.state === 1 && game.revealDeadline > 0 && isTimeoutByBlockchain(game.revealDeadline) && (
-                <button
-                  onClick={handleTimeoutReveal}
-                  className="py-2 px-4 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm"
-                >
-                  超时处理 (揭示)
-                </button>
+                (game.isPlayer1 && game.moves?.player1?.revealed && !game.moves?.player2?.revealed ||
+                 game.isPlayer2 && game.moves?.player2?.revealed && !game.moves?.player1?.revealed) && (
+                  <button
+                    onClick={handleTimeoutReveal}
+                    className="py-2 px-4 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm"
+                  >
+                    超时处理 (揭示)
+                  </button>
+                )
               )}
               
               {/* 提交超时按钮 - 当在CommitPhase状态(5)或游戏有第二位玩家的Created状态(0)，且commitDeadline已过期时显示 */}
