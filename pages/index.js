@@ -11,6 +11,9 @@ import 'aos/dist/aos.css';
 import gsap from 'gsap';
 import { Player } from '@lottiefiles/react-lottie-player';
 
+// u52a8u6001u5bfcu5165u7687u51a0u96eau82b1u7279u6548u7ec4u4ef6(u5ba2u6237u7aefu6e32u67d3)
+const CrownSnowfall = dynamic(() => import('../components/CrownSnowfall'), { ssr: false });
+
 function Home() {
   const router = useRouter();
   const { isConnected } = useAccount();
@@ -92,6 +95,9 @@ function Home() {
   
   return (
     <Layout>
+      {/* 皇冠雪花特效 */}
+      <CrownSnowfall />
+      
       {/* 背景粒子效果 - 只在初始化动画完成后显示 */}
       {showParticles && (
         <div className="fixed inset-0 pointer-events-none z-0 opacity-30">
