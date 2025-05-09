@@ -9,7 +9,8 @@ import dynamic from 'next/dynamic';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 import gsap from 'gsap';
-import { Player } from '@lottiefiles/react-lottie-player';
+// 动态导入Lottie Player以避免服务器端渲染问题
+const Player = dynamic(() => import('@lottiefiles/react-lottie-player').then(mod => mod.Player), { ssr: false });
 
 // u52a8u6001u5bfcu5165u7687u51a0u96eau82b1u7279u6548u7ec4u4ef6(u5ba2u6237u7aefu6e32u67d3)
 const CrownSnowfall = dynamic(() => import('../components/CrownSnowfall'), { ssr: false });

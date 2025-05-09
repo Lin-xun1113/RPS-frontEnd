@@ -2,6 +2,7 @@
 node_modules
 /.pnp
 .pnp.js
+.next
 
 # 测试
 /coverage
@@ -34,3 +35,6 @@ yarn-error.log*
 # 编辑器配置
 .idea
 .vscode
+
+# Local Netlify folder
+.netlify
