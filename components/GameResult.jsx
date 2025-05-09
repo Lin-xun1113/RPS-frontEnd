@@ -28,7 +28,7 @@ const GameResult = ({ player1Move, player2Move, winner, isRoundResult = true }) 
         {isRoundResult ? '回合结果' : '游戏结束!'}
       </h3>
       
-      <div className="flex justify-center items-center gap-10 mb-8">
+      {/* <div className="flex justify-center items-center gap-10 mb-8">
         <div className="text-center">
           <p className="text-blue-300 mb-2 font-medieval">玩家 1</p>
           <div className="w-20 h-20 rounded-full p-2 bg-blue-900/70 border-2 border-blue-400 mx-auto shadow-[0_0_10px_rgba(59,130,246,0.5)]">
@@ -58,7 +58,7 @@ const GameResult = ({ player1Move, player2Move, winner, isRoundResult = true }) 
             </div>
           </div>
         </div>
-      </div>
+      </div> */}
       
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}

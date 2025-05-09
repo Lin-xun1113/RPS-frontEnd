@@ -180,6 +180,9 @@ function Home() {
                       className="h-[2px] w-full bg-gradient-to-r from-transparent via-amber-700/60 to-transparent absolute -bottom-3 left-0"
                     />
                   </h2>
+                  
+                  {/* 添加额外的空间，避免被卷轴遮挡 */}
+                  <div className="h-12 md:h-16 lg:h-20"></div>
                 </motion.div>
               </AnimatePresence>
             </div>
@@ -330,7 +333,7 @@ function Home() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 2.5, duration: 0.5 }}
-                className="text-amber-800 italic text-[10px] mb-3 flex items-center justify-center"
+                className="text-amber-800 italic text-[15px] mb-5 flex items-center justify-center"
               >
                 <span className="inline-block w-1 h-1 bg-amber-700/60 rounded-full mr-1"></span>
                 请在下方签署契约以继续

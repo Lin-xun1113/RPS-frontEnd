@@ -219,8 +219,8 @@ export default function History() {
       // 批量获取游戏详情
       const gamesWithDetails = await fetchGameDetails(gameBasicInfoList);
       
-      // 按创建时间排序（从新到旧，确保最新的游戏显示在最上面）
-      gamesWithDetails.sort((a, b) => b.createdAt - a.createdAt);
+      // 按游戏序号排序（从大到小，确保最新的游戏显示在最上面）
+      gamesWithDetails.sort((a, b) => parseInt(b.id) - parseInt(a.id));
       
       setGames(gamesWithDetails);
       setLoading(false);
@@ -259,7 +259,31 @@ export default function History() {
           </button>
         </div>
         
-        <div className="bg-[url('/images/scroll-wide.png')] bg-contain bg-center bg-no-repeat py-16 px-12 mb-8">
+        {/* <div 
+          className="
+            bg-[url('/images/scroll-wide.png')] 
+            bg-fixed 
+            bg-[length:120%_auto] 
+            bg-top 
+            bg-no-repeat 
+            py-20 
+            px-16 
+            mb-8
+            relative
+            shadow-xl
+          "
+        > */}
+        <div className="relative mx-auto max-w-5xl"
+          style={{
+            backgroundImage: "url('/images/scroll-wide.png')",
+            backgroundSize: "contain",
+            backgroundPosition: "center top",
+            backgroundRepeat: "no-repeat",
+            padding: "4rem 3rem",
+            marginBottom: "2rem",
+            minHeight: "700px"
+          }}
+        >
           <div className="bg-amber-50/90 p-6 rounded-lg shadow-inner">
             <div className="mb-6">
               <h2 className="text-2xl font-medieval text-amber-900 mb-4">游戏统计</h2>

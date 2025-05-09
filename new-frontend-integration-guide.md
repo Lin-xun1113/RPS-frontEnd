@@ -16,7 +16,7 @@
 
 - **Network**: MagnetChain
 - **RockPaperScissors Contract**: `0xE4B7CBa976294eDeb12C61e659423C0D843e0afE`
-- **WinningToken Contract**: `0xd724606bb64456969c0848489dd1316627e0d0e3`
+- **WinningToken Contract**: `0x5BA41CFe93fcD6Bc5BDc00A83BDd5d7E8F696F1E`
 
 ## Smart Contract Overview
 

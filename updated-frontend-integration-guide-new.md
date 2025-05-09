@@ -18,7 +18,7 @@
 - **Chain ID**: 114514
 - **Node URL**: https://node2.magnetchain.xyz
 - **RockPaperScissors Contract**: `0x3c5c0e1be0649D7aAa181271AebdEae12c82d7c5`
-- **WinningToken Contract**: `0xE40363A17846E7e55BF7afA2Ec601dA8F21e2ac0`
+- **WinningToken Contract**: `0x5BA41CFe93fcD6Bc5BDc00A83BDd5d7E8F696F1E`
 
 ## Smart Contract Overview
 

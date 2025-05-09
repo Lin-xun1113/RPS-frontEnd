@@ -139,7 +139,7 @@ const CrownSnowfall = () => {
     }
     
     // 持续生成皇冠
-    const interval = setInterval(createCrown, 200);
+    const interval = setInterval(createCrown, 400);
     
     // 清理
     return () => {
