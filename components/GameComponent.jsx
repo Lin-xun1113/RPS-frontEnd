@@ -149,8 +149,24 @@ export default function GameComponent() {
     
     try {
       setRefreshing(true);
+      
+      // 强制解除状态锁定，确保界面可以立即更新
+      setPhaseLocked(false);
+      setActionTaken(false);
+      
+      // 清除之前的状态锁定计时器
+      if (typeof window !== 'undefined' && window._phaseLockTimer) {
+        clearTimeout(window._phaseLockTimer);
+        window._phaseLockTimer = null;
+        console.log('手动刷新: 已清除锁定计时器');
+      }
+      
       toast.loading('刷新游戏状态...', { id: 'refresh-toast' });
+      console.log('手动刷新: 强制从区块链获取最新状态');
+      
+      // 强制刷新游戏数据
       await fetchGameDetails(true);
+      
       toast.success('游戏状态已更新', { id: 'refresh-toast' });
     } catch (error) {
       console.error('手动刷新失败:', error);
