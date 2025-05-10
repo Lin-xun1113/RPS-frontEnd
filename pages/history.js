@@ -12,6 +12,8 @@ export default function History() {
   const provider = useProvider();
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [blockRange, setBlockRange] = useState(50000); // 默认查询50000个区块
+  const [loadingMore, setLoadingMore] = useState(false); // 加载更多状态
   
   const contract = useContract({
     address: ROCK_PAPER_SCISSORS_ADDRESS,
@@ -26,7 +28,7 @@ export default function History() {
   }, [isConnected, contract]);
   
   // 从合约事件获取游戏列表的函数
-  const fetchGameIdsFromEvents = async (maxBlocks = 50000) => {
+  const fetchGameIdsFromEvents = async (maxBlocks = blockRange) => {
     try {
       if (!contract) return [];
       
@@ -202,6 +204,40 @@ export default function History() {
     }
   };
 
+  // 加载更多区块的游戏历史
+  const loadMoreGames = async () => {
+    try {
+      setLoadingMore(true);
+      
+      // 增加查询区块范围（每次增加100000个区块）
+      const newBlockRange = blockRange + 100000;
+      setBlockRange(newBlockRange);
+      
+      console.log(`增加查询区块范围至${newBlockRange}个区块`);
+      
+      // 使用新的区块范围获取用户相关的游戏基本信息
+      const gameBasicInfoList = await fetchGameIdsFromEvents(newBlockRange);
+      
+      // 如果没有游戏，直接返回
+      if (!gameBasicInfoList.length) {
+        setLoadingMore(false);
+        return;
+      }
+      
+      // 批量获取游戏详情
+      const gamesWithDetails = await fetchGameDetails(gameBasicInfoList);
+      
+      // 按游戏序号排序（从大到小，确保最新的游戏显示在最上面）
+      gamesWithDetails.sort((a, b) => parseInt(b.id) - parseInt(a.id));
+      
+      setGames(gamesWithDetails);
+      setLoadingMore(false);
+    } catch (error) {
+      console.error('加载更多游戏历史失败:', error);
+      setLoadingMore(false);
+    }
+  };
+
   const fetchGamesHistory = async () => {
     try {
       setLoading(true);
@@ -323,6 +359,28 @@ export default function History() {
                 {games.map((game) => (
                   <GameHistoryCard key={game.id} game={game} address={address} />
                 ))}
+                
+                {/* 加载更多按钮 */}
+                <div className="flex justify-center mt-8">
+                  <button
+                    onClick={loadMoreGames}
+                    disabled={loadingMore}
+                    className={`py-2 px-6 rounded-md border-2 font-medieval text-lg transition-all duration-300 ${
+                      loadingMore 
+                        ? 'bg-amber-100 text-amber-400 border-amber-200 cursor-not-allowed' 
+                        : 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200 hover:border-amber-400'
+                    }`}
+                  >
+                    {loadingMore ? (
+                      <div className="flex items-center">
+                        <div className="animate-spin w-5 h-5 border-2 border-amber-800 border-t-transparent rounded-full mr-2"></div>
+                        加载中...
+                      </div>
+                    ) : (
+                      `加载更多区块 (当前: ${blockRange.toLocaleString()})`
+                    )}
+                  </button>
+                </div>
               </div>
             )}
           </div>

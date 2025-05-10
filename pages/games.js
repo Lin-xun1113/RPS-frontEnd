@@ -62,6 +62,8 @@ function GamesWithoutLayout() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMounted, setIsMounted] = useState(false); // 用于客户端渲染检测
+  const [maxBlockRange, setMaxBlockRange] = useState(20000); // 默认查询最大20000个区块
+  const [loadingMoreBlocks, setLoadingMoreBlocks] = useState(false); // 加载更多区块状态
   
   // 调试日志 - signer状态
   useEffect(() => {
@@ -89,7 +91,7 @@ function GamesWithoutLayout() {
   }, [provider]);
   
   // 从合约事件获取游戏列表（使用动态区块范围和分页优化性能）
-  const fetchGameIdsFromEvents = useCallback(async (maxResults = 50, minDesiredResults = 5) => {
+  const fetchGameIdsFromEvents = useCallback(async (maxResults = 50, minDesiredResults = 5, customBlockRange = null) => {
     try {
       if (!contract) return [];
       
@@ -97,8 +99,54 @@ function GamesWithoutLayout() {
       const latestBlock = await provider.getBlockNumber();
       console.log('当前区块高度:', latestBlock);
       
+      // 如果提供了自定义区块范围，则直接使用
+      if (customBlockRange) {
+        console.log(`使用自定义区块范围: ${customBlockRange} 个区块`);
+        const fromBlock = Math.max(0, latestBlock - customBlockRange);
+        
+        console.log(`查询区块范围: 从 ${fromBlock} 到最新区块`);
+        
+        // 获取GameCreated事件
+        const createEvents = await contract.queryFilter(
+          contract.filters.GameCreated(), 
+          fromBlock, 
+          'latest'
+        );
+        
+        console.log(`查询到 ${createEvents.length} 个游戏创建事件`);
+        
+        // 提取游戏ID和基本信息
+        const gameIds = createEvents
+          .slice(0, maxResults)
+          .map(event => {
+            // ...获取游戏数据的逻辑保持不变...
+            const gameId = event.args[0].toString();
+            const creator = event.args[1];
+            const bet = event.args[2];
+            const totalTurns = event.args[3];
+            const isTokenGame = bet.toString() === '0';
+            let creationTime = new Date().getTime();
+            
+            if (event.blockTimestamp) {
+              creationTime = new Date(event.blockTimestamp * 1000).getTime();
+            }
+            
+            return {
+              id: gameId.toString(),
+              creator,
+              betAmount: bet,
+              blockNumber: event.blockNumber,
+              totalTurns: typeof totalTurns === 'object' && totalTurns.toNumber ? totalTurns.toNumber() : Number(totalTurns || 0),
+              gameType: isTokenGame ? 'token' : 'eth',
+              createdAt: creationTime,
+            };
+          });
+        
+        return gameIds;
+      }
+      
       // 定义可能的查询范围（区块数量）
-      const blockRanges = [5000, 10000, 20000];
+      const blockRanges = [5000, 10000, maxBlockRange]; // 使用当前设置的最大区块范围
       let createEvents = [];
       
       // 动态调整查询范围以获取足够的游戏
@@ -246,16 +294,20 @@ function GamesWithoutLayout() {
   }, [contract]);
 
   // 主获取游戏函数（生产环境实现）
-  const fetchGames = useCallback(async () => {
+  const fetchGames = useCallback(async (customBlockRange = null) => {
     if (!isConnected || !contract) return;
 
     try {
-      setLoading(true);
+      // 只有在正常加载时设置loading状态，在加载更多区块时不设置
+      if (!customBlockRange) {
+        setLoading(true);
+      }
       setError(null);
       
       // 获取游戏基本信息列表 - 指定结果数量上限和最小期望结果数量
-      // 最多返回100个游戏，但至少希望有10个游戏，如果不足将扩大查询范围
-      const gameBasicInfoList = await fetchGameIdsFromEvents(100, 10);
+      // 最多返回100个游戏，但至少希望有10个游戏
+      // 如果提供了自定义区块范围，则使用该范围
+      const gameBasicInfoList = await fetchGameIdsFromEvents(100, 10, customBlockRange);
       
       // 如果没有游戏，直接返回
       if (!gameBasicInfoList.length) {
@@ -504,14 +556,37 @@ function GamesWithoutLayout() {
       toast.error(`加入游戏失败: ${error.message || error.reason || '未知错误'}`, { id: 'join-game' });
     }
   }, [contract, games, router, signer]);
-
+  
+  // 加载更多区块的函数
+  const loadMoreBlocks = useCallback(async () => {
+    if (loadingMoreBlocks || !contract || !isConnected) return;
+    
+    try {
+      setLoadingMoreBlocks(true);
+      
+      // 增加区块范围（增加50000个区块）
+      const newBlockRange = maxBlockRange + 50000;
+      setMaxBlockRange(newBlockRange);
+      
+      console.log(`增加区块范围至${newBlockRange}个区块`);
+      
+      // 使用新的区块范围获取游戏列表
+      await fetchGames(newBlockRange);
+      
+    } catch (error) {
+      console.error('加载更多区块失败:', error);
+      toast.error('加载更多区块失败，请稍后再试');
+    } finally {
+      setLoadingMoreBlocks(false);
+    }
+  }, [contract, isConnected, fetchGames, loadingMoreBlocks, maxBlockRange]);
+  
   // 手动刷新游戏列表
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = useCallback(async () => {
     if (isRefreshing) return;
     setIsRefreshing(true);
-    fetchGames().finally(() => {
-      setTimeout(() => setIsRefreshing(false), 1000);
-    });
+    await fetchGames();
+    setTimeout(() => setIsRefreshing(false), 1000);
   }, [fetchGames, isRefreshing]);
 
   // 筛选按钮组件
@@ -877,6 +952,30 @@ function GamesWithoutLayout() {
               {!loading && games.length > 0 && (
                 <div className="text-center mt-8 text-amber-700 text-sm">
                   当前显示 {games.length} 个{filter !== 'all' ? (filter === 'eth' ? 'MAG' : '代币') : ''}游戏
+                </div>
+              )}
+              
+              {/* 加载更多区块按钮 */}
+              {!loading && games.length > 0 && (
+                <div className="flex justify-center mt-6">
+                  <button
+                    onClick={loadMoreBlocks}
+                    disabled={loadingMoreBlocks}
+                    className={`py-2 px-6 rounded-md border-2 font-medieval text-lg transition-all duration-300 ${
+                      loadingMoreBlocks 
+                        ? 'bg-amber-100 text-amber-400 border-amber-200 cursor-not-allowed' 
+                        : 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200 hover:border-amber-400'
+                    }`}
+                  >
+                    {loadingMoreBlocks ? (
+                      <div className="flex items-center">
+                        <div className="animate-spin w-5 h-5 border-2 border-amber-800 border-t-transparent rounded-full mr-2"></div>
+                        加载中...
+                      </div>
+                    ) : (
+                      `加载更多区块 (当前: ${maxBlockRange.toLocaleString()})`
+                    )}
+                  </button>
                 </div>
               )}
             </div>
