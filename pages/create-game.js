@@ -7,6 +7,7 @@ import { ethers } from 'ethers';
 import Layout from '../components/Layout';
 import Image from 'next/image';
 import { ROCK_PAPER_SCISSORS_ADDRESS, ABI, WINNING_TOKEN_ADDRESS, TOKEN_ABI } from '../constants/contractInfo';
+import { createTransactionParams } from '../utils/transactionUtils';
 
 export default function CreateGame() {
   const router = useRouter();
@@ -88,9 +89,9 @@ export default function CreateGame() {
         // 创建ETH游戏
         toast.loading('正在创建MAG游戏...', { id: 'createGame' });
         // 参数顺序为：totalTurns, timeoutInterval, timeoutCommit
-        tx = await contract.createGameWithEth(totalTurns, timeoutInterval, timeoutCommit, {
-          value: ethers.utils.parseEther(betAmount)
-        });
+        tx = await contract.createGameWithEth(totalTurns, timeoutInterval, timeoutCommit, 
+          createTransactionParams({ value: ethers.utils.parseEther(betAmount) })
+        );
       } else {
         // 代币游戏
         // 检查代币余额和授权
@@ -114,7 +115,7 @@ export default function CreateGame() {
           // 创建代币游戏
           toast.loading('正在创建代币游戏...', { id: 'createGame' });
           // 与ETH游戏保持一致的参数顺序: totalTurns, timeoutInterval, timeoutCommit
-          tx = await contract.createGameWithToken(totalTurns, timeoutInterval, timeoutCommit);
+          tx = await contract.createGameWithToken(totalTurns, timeoutInterval, timeoutCommit, createTransactionParams());
         } catch (tokenError) {
           console.error('代币交互失败:', tokenError);
           toast.error(`代币操作失败: ${tokenError.message.slice(0, 50)}...`, { id: 'approveToken' });

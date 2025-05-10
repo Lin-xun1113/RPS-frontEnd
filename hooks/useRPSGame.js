@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useContract, useSigner, useProvider } from 'wagmi';
 import { ethers } from 'ethers';
 import { ROCK_PAPER_SCISSORS_ADDRESS, ABI, GAME_STATES } from '../constants/contractInfo';
+import { createTransactionParams } from '../utils/transactionUtils';
 
 /**
  * 自定义钩子用于处理石头剪刀布游戏逻辑
@@ -111,7 +112,7 @@ export default function useRPSGame(gameId) {
       
       // 调用合约提交移动
       // 实际应用中使用：
-      // const tx = await contract.commitMove(gameId, moveHash);
+      // const tx = await contract.commitMove(gameId, moveHash, createTransactionParams());
       // await tx.wait();
       
       // 模拟成功提交
@@ -161,7 +162,7 @@ export default function useRPSGame(gameId) {
       
       // 调用合约揭示移动
       // 实际应用中使用：
-      // const tx = await contract.revealMove(gameId, selectedMove, salt);
+      // const tx = await contract.revealMove(gameId, selectedMove, salt, createTransactionParams());
       // await tx.wait();
       
       // 模拟成功揭示
@@ -213,7 +214,7 @@ export default function useRPSGame(gameId) {
       
       // 调用合约超时揭示
       // 实际应用中使用：
-      // const tx = await contract.timeoutReveal(gameId);
+      // const tx = await contract.timeoutReveal(gameId, createTransactionParams());
       // await tx.wait();
       
       // 模拟成功处理超时
@@ -243,7 +244,7 @@ export default function useRPSGame(gameId) {
       
       // 调用合约提取奖励
       // 实际应用中使用：
-      // const tx = await contract.withdrawPrize();
+      // const tx = await contract.withdrawPrize(createTransactionParams());
       // await tx.wait();
       
       // 模拟成功提取

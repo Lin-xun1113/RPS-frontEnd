@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { ethers } from 'ethers';
 import { useAccount, useContract, useSigner, useProvider, useBalance } from 'wagmi';
 import { Toaster, toast } from 'react-hot-toast';
+import { createTransactionParams } from '../utils/transactionUtils';
 import Head from 'next/head';
 import Layout from '../components/Layout';
 import { ROCK_PAPER_SCISSORS_ADDRESS, ABI } from '../constants/contractInfo';
@@ -66,7 +67,7 @@ export default function AdminPage() {
       setLoading(true);
       toast.loading('更改管理员中...', { id: 'admin' });
       
-      const tx = await contract.setAdmin(newAdminAddress);
+      const tx = await contract.setAdmin(newAdminAddress, createTransactionParams());
       toast.loading('等待区块链确认...', { id: 'admin' });
       
       await tx.wait();
@@ -100,7 +101,7 @@ export default function AdminPage() {
       setLoading(true);
       toast.loading('提取协议费用中...', { id: 'withdraw' });
       
-      const tx = await contract.withdrawFees(amount);
+      const tx = await contract.withdrawFees(amount, createTransactionParams());
       toast.loading('等待区块链确认...', { id: 'withdraw' });
       
       await tx.wait();
@@ -144,7 +145,7 @@ export default function AdminPage() {
       setLoading(true);
       toast.loading('紧急提款中...', { id: 'emergency' });
       
-      const tx = await contract.withdrawAllFunds(amount);
+      const tx = await contract.withdrawAllFunds(amount, createTransactionParams());
       toast.loading('等待区块链确认...', { id: 'emergency' });
       
       await tx.wait();

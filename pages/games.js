@@ -3,13 +3,13 @@ import { motion } from 'framer-motion';
 import { useRouter } from 'next/router';
 import { useAccount, useProvider, useSigner } from 'wagmi';
 import Layout from '../components/Layout';
-import { ethers } from 'ethers';
-import { toast } from 'react-hot-toast';
-import Head from 'next/head';
 import dynamic from 'next/dynamic';
-
-// 合约ABI和地址
-import { ROCK_PAPER_SCISSORS_ADDRESS, WINNING_TOKEN_ADDRESS, ABI, GAME_STATES, NETWORK } from '../constants/contractInfo';
+import Link from 'next/link';
+import Head from 'next/head';
+import { ethers } from 'ethers';
+import { toast, Toaster } from 'react-hot-toast';
+import { ROCK_PAPER_SCISSORS_ADDRESS, ABI, WINNING_TOKEN_ADDRESS, TOKEN_ABI, GAME_STATES } from '../constants/contractInfo';
+import { createTransactionParams } from '../utils/transactionUtils';
 
 // 安全的客户端组件包装器
 const SafeHydrate = ({ children }) => {
@@ -522,7 +522,7 @@ function GamesWithoutLayout() {
           console.log('加入代币游戏:', gameId);
         } else {
           // ETH游戏使用joinGameWithEth函数，需要发送相同金额的ETH
-          tx = await signerContract.joinGameWithEth(gameId, { value: bet });
+          tx = await signerContract.joinGameWithEth(gameId, createTransactionParams({ value: bet }));
           console.log('加入MAG游戏:', gameId, '下注:', ethers.utils.formatEther(bet), 'MAG');
         }
         
