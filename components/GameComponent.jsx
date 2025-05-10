@@ -949,14 +949,15 @@ else if (gameData.state === 0 || gameData.state === 5) {
         
         currentSalt = ethers.utils.hexlify(saltUtf8Bytes);
         
-        if (salt.length < 8) {
+        if (inputSalt.length < 8) {
           toast(`您输入的盐值较短，安全性较低，但仍将使用`);
         } else {
-          toast.success('已接受您的自定义盐值: ' + salt);
+          toast.success('已接受您的自定义盐值');
         }
       }
-      setSalt(salt);
-      saltRef.current = salt;
+      // 保存正确的盐值到状态和引用
+      setSalt(currentSalt);
+      saltRef.current = currentSalt;
 
       console.log('选择的移动:', selectedMove);
       console.log('最终使用的盐值:', currentSalt);
