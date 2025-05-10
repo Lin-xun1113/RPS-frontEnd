@@ -15,16 +15,16 @@ export default function Rules() {
       >
         <h1 className="text-3xl font-medieval text-amber-900 mb-8">游戏规则</h1>
         
-        <div className="bg-[url('/images/scroll-wide.png')] bg-contain bg-center bg-no-repeat py-16 px-12 mb-8">
+        <div className="bg-[url('/images/scroll-wide.png')] bg-contain bg-center bg-no-repeat py-8 sm:py-12 md:py-16 px-4 sm:px-8 md:px-12 mb-8">
           <div className="bg-amber-50/90 p-6 rounded-lg shadow-inner">
             <h2 className="text-2xl font-medieval text-amber-900 mb-6">游戏介绍</h2>
             <p className="text-amber-800 mb-4">
               石头剪刀布是一款基于区块链的多回合对战游戏，采用特殊的提交-揭示机制确保公平性。玩家可以使用MAG或代币进行游戏，胜利者将获得奖励。
             </p>
             
-            <div className="flex justify-center gap-16 my-8">
-              <div className="text-center">
-                <div className="w-24 h-24 bg-amber-100 rounded-full p-2 border-2 border-amber-400 mx-auto">
+            <div className="flex flex-col sm:flex-row justify-center gap-6 sm:gap-8 md:gap-16 my-8">
+              <div className="text-center mb-6 sm:mb-0">
+                <div className="w-20 h-20 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-amber-100 rounded-full p-2 border-2 border-amber-400 mx-auto">
                   <div className="relative w-full h-full">
                     <Image src="/images/rock.png" fill style={{objectFit: 'contain'}} alt="石头" />
                   </div>
@@ -33,8 +33,8 @@ export default function Rules() {
                 <p className="text-sm text-amber-700">胜 剪刀</p>
               </div>
               
-              <div className="text-center">
-                <div className="w-24 h-24 bg-amber-100 rounded-full p-2 border-2 border-amber-400 mx-auto">
+              <div className="text-center mb-6 sm:mb-0">
+                <div className="w-20 h-20 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-amber-100 rounded-full p-2 border-2 border-amber-400 mx-auto">
                   <div className="relative w-full h-full">
                     <Image src="/images/scissors.png" fill style={{objectFit: 'contain'}} alt="剪刀" />
                   </div>
@@ -44,7 +44,7 @@ export default function Rules() {
               </div>
               
               <div className="text-center">
-                <div className="w-24 h-24 bg-amber-100 rounded-full p-2 border-2 border-amber-400 mx-auto">
+                <div className="w-20 h-20 sm:w-20 sm:h-20 md:w-24 md:h-24 bg-amber-100 rounded-full p-2 border-2 border-amber-400 mx-auto">
                   <div className="relative w-full h-full">
                     <Image src="/images/paper.png" fill style={{objectFit: 'contain'}} alt="布" />
                   </div>
