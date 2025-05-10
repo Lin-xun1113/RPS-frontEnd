@@ -955,8 +955,8 @@ function GamesWithoutLayout() {
                 </div>
               )}
               
-              {/* 加载更多区块按钮 */}
-              {!loading && games.length > 0 && (
+              {/* 加载更多区块按钮 - 无论当前筛选结果如何都显示，只要不在加载中状态 */}
+              {!loading && (
                 <div className="flex justify-center mt-6">
                   <button
                     onClick={loadMoreBlocks}
