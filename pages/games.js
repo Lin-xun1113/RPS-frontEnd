@@ -741,15 +741,11 @@ function GamesWithoutLayout() {
             </div>
           </div>
 
-          <div className="relative min-h-[600px] mb-8 overflow-visible">
+          <div className="relative min-h-[600px] mb-8 overflow-hidden rounded-lg">
             {/* 固定大小的卷轴背景，不受内容变化影响 */}
-            <div className="absolute" style={{
-              left: '-10%', 
-              right: '-10%', 
-              top: '-5%', 
-              bottom: '-5%', 
+            <div className="absolute inset-0" style={{
               backgroundImage: 'url(/images/scroll-wide.png)', 
-              backgroundSize: 'contain', 
+              backgroundSize: 'cover', 
               backgroundPosition: 'center', 
               backgroundRepeat: 'no-repeat', 
               zIndex: 0

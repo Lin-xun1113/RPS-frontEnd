@@ -384,7 +384,7 @@ const GameHistoryCard = ({ game, address }) => {
   return (
     <motion.div
       whileHover={{ y: -2 }}
-      className={`border-2 rounded-lg p-4 shadow-md ${
+      className={`border-2 rounded-lg p-3 sm:p-4 shadow-md ${
         game.result === 'won' ? 'bg-green-50 border-green-200' : 
         game.result === 'lost' ? 'bg-red-50 border-red-200' : 
         game.result === 'draw' ? 'bg-yellow-50 border-yellow-200' : 
@@ -392,55 +392,57 @@ const GameHistoryCard = ({ game, address }) => {
         'bg-blue-50 border-blue-200'
       }`}
     >
-      <div className="flex justify-between">
+      {/* 卡片头部 - 改进响应式布局 */}
+      <div className="flex flex-col sm:flex-row sm:justify-between gap-2 sm:gap-0">
         <div>
           <h3 className="text-xl font-medieval text-amber-900">游戏 #{game.id}</h3>
-          <p className="text-sm text-amber-700">
+          <p className="text-xs sm:text-sm text-amber-700 truncate max-w-[280px]">
             {new Date(game.createdAt).toLocaleString('zh-CN', {year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'})} - 
             {new Date(game.endedAt).toLocaleString('zh-CN', {year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'})}
           </p>
         </div>
         
-        <div className="flex items-center">
-          <div className={`px-3 py-1 rounded-full text-sm font-medieval ${game.gameType === 'eth' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}`}>
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medieval ${game.gameType === 'eth' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}`}>
             {game.gameType === 'eth' ? 'MAG游戏' : '代币游戏'}
           </div>
-          <div className={`ml-2 px-3 py-1 rounded-full text-sm font-medieval ${resultStyle}`}>
+          <div className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medieval ${resultStyle}`}>
             {resultText}
           </div>
         </div>
       </div>
       
-      <div className="mt-4 flex justify-between items-center">
+      {/* 卡片底部 - 改进响应式布局 */}
+      <div className="mt-3 sm:mt-4 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-0">
         <div>
-          <div className="flex items-center">
-            <span className="text-amber-800 font-medieval">对手:</span>
-            <span className="ml-2 font-mono text-sm bg-amber-100 px-2 py-1 rounded">
+          <div className="flex items-center flex-wrap">
+            <span className="text-amber-800 font-medieval text-sm">对手:</span>
+            <span className="ml-1 sm:ml-2 font-mono text-xs sm:text-sm bg-amber-100 px-2 py-1 rounded">
               {opponent ? `${opponent.substr(0, 6)}...${opponent.substr(-4)}` : '无对手'}
             </span>
           </div>
           {game.gameType === 'eth' && (
-            <div className="mt-1">
-              <span className="text-amber-800 font-medieval">投注金额:</span>
-              <span className="ml-2 font-mono text-sm">
+            <div className="mt-1 flex items-center flex-wrap">
+              <span className="text-amber-800 font-medieval text-sm">投注金额:</span>
+              <span className="ml-1 sm:ml-2 font-mono text-xs sm:text-sm">
                 {ethers.utils.formatEther(game.betAmount)} MAG
               </span>
             </div>
           )}
         </div>
         
-        <div className="text-center">
+        <div className="text-center order-first sm:order-none bg-amber-50 sm:bg-transparent py-1 px-2 rounded-lg sm:rounded-none">
           <div className="text-xl font-medieval text-amber-900">
             {playerScore} : {opponentScore}
           </div>
-          <div className="text-amber-700 text-sm">
+          <div className="text-amber-700 text-xs sm:text-sm">
             {game.totalTurns} 回合
           </div>
         </div>
         
         <button
           onClick={() => window.open(`/game/${game.id}`, '_blank')}
-          className="py-2 px-4 bg-amber-100 text-amber-800 font-medieval rounded border border-amber-300 hover:bg-amber-200 transition-all duration-300"
+          className="py-1 sm:py-2 px-3 sm:px-4 bg-amber-100 text-amber-800 font-medieval text-sm sm:text-base rounded border border-amber-300 hover:bg-amber-200 transition-all duration-300"
         >
           查看详情
         </button>

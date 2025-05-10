@@ -98,11 +98,11 @@ const ProfilePage = () => {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8 max-w-5xl">
       <Toaster position="top-center" toastOptions={{ duration: 5000 }} />
       
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 shadow-md">
-        <h2 className="text-2xl font-medieval text-amber-900 mb-6">我的账户</h2>
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 sm:p-6 shadow-md overflow-hidden">
+        <h2 className="text-2xl font-medieval text-amber-900 mb-4 sm:mb-6">我的账户</h2>
         
         {error && (
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4">
@@ -110,14 +110,14 @@ const ProfilePage = () => {
           </div>
         )}
         
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
           {/* 账户信息 */}
-          <div className="bg-white rounded-lg p-5 border border-amber-100 shadow-sm">
-            <h3 className="text-xl font-medieval text-amber-800 mb-4">账户信息</h3>
+          <div className="bg-white rounded-lg p-4 sm:p-5 border border-amber-100 shadow-sm">
+            <h3 className="text-xl font-medieval text-amber-800 mb-3 sm:mb-4">账户信息</h3>
             <div className="space-y-3">
               <div>
                 <p className="text-gray-600 text-sm mb-1">钱包地址</p>
-                <p className="font-mono text-sm overflow-x-auto">{address}</p>
+                <p className="font-mono text-xs sm:text-sm break-all">{address}</p>
               </div>
               <div>
                 <p className="text-gray-600 text-sm mb-1">钱包余额</p>
@@ -129,9 +129,9 @@ const ProfilePage = () => {
           </div>
           
           {/* 奖励信息 */}
-          <div className="bg-white rounded-lg p-5 border border-amber-100 shadow-sm">
-            <h3 className="text-xl font-medieval text-amber-800 mb-4">游戏奖励</h3>
-            <div className="space-y-4">
+          <div className="bg-white rounded-lg p-4 sm:p-5 border border-amber-100 shadow-sm">
+            <h3 className="text-xl font-medieval text-amber-800 mb-3 sm:mb-4">游戏奖励</h3>
+            <div className="space-y-3 sm:space-y-4">
               <div>
                 <p className="text-gray-600 text-sm mb-1">待提取奖励</p>
                 <p className="text-lg font-semibold">
