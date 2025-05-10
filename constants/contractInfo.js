@@ -52,65 +52,364 @@ export const MOVES = {
   }
 };
 
-// 合约ABI
+// 合约ABI - 使用Wagmi v1兼容的结构化格式
 export const ABI = [
   // 游戏创建函数
-  "function createGameWithEth(uint256 _totalTurns, uint256 _timeoutInterval, uint256 _timeoutCommit) external payable returns (uint256)",
-  "function createGameWithToken(uint256 _totalTurns, uint256 _timeoutInterval, uint256 _timeoutCommit) external returns (uint256)",
+  {
+    name: 'createGameWithEth',
+    type: 'function',
+    stateMutability: 'payable',
+    inputs: [
+      { name: '_totalTurns', type: 'uint256' },
+      { name: '_timeoutInterval', type: 'uint256' },
+      { name: '_timeoutCommit', type: 'uint256' }
+    ],
+    outputs: [{ type: 'uint256' }]
+  },
+  {
+    name: 'createGameWithToken',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: '_totalTurns', type: 'uint256' },
+      { name: '_timeoutInterval', type: 'uint256' },
+      { name: '_timeoutCommit', type: 'uint256' }
+    ],
+    outputs: [{ type: 'uint256' }]
+  },
   
   // 加入游戏函数
-  "function joinGameWithEth(uint256 _gameId) external payable",
-  "function joinGameWithToken(uint256 _gameId) external",
+  {
+    name: 'joinGameWithEth',
+    type: 'function',
+    stateMutability: 'payable',
+    inputs: [{ name: '_gameId', type: 'uint256' }],
+    outputs: []
+  },
+  {
+    name: 'joinGameWithToken',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: '_gameId', type: 'uint256' }],
+    outputs: []
+  },
   
   // 移动提交与揭示
-  "function commitMove(uint256 _gameId, bytes32 _commitHash) external",
-  "function revealMove(uint256 _gameId, uint8 _move, bytes32 _salt) external",
+  {
+    name: 'commitMove',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: '_gameId', type: 'uint256' },
+      { name: '_commitHash', type: 'bytes32' }
+    ],
+    outputs: []
+  },
+  {
+    name: 'revealMove',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: '_gameId', type: 'uint256' },
+      { name: '_move', type: 'uint8' },
+      { name: '_salt', type: 'bytes32' }
+    ],
+    outputs: []
+  },
   
   // 超时处理函数
-  "function timeoutJoin(uint256 _gameId) external",
-  "function canTimeoutJoin(uint256 _gameId) external view returns (bool)",
-  "function timeoutCommit(uint256 _gameId) external",
-  "function canTimeoutCommit(uint256 _gameId) external view returns (bool canTimeout, address winnerIfTimeout)",
-  "function timeoutReveal(uint256 _gameId) external",
-  "function canTimeoutReveal(uint256 _gameId) external view returns (bool canTimeout, address winnerIfTimeout)",
+  {
+    name: 'timeoutJoin',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: '_gameId', type: 'uint256' }],
+    outputs: []
+  },
+  {
+    name: 'canTimeoutJoin',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: '_gameId', type: 'uint256' }],
+    outputs: [{ name: '', type: 'bool' }]
+  },
+  {
+    name: 'timeoutCommit',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: '_gameId', type: 'uint256' }],
+    outputs: []
+  },
+  {
+    name: 'canTimeoutCommit',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: '_gameId', type: 'uint256' }],
+    outputs: [
+      { name: 'canTimeout', type: 'bool' },
+      { name: 'winnerIfTimeout', type: 'address' }
+    ]
+  },
+  {
+    name: 'timeoutReveal',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: '_gameId', type: 'uint256' }],
+    outputs: []
+  },
+  {
+    name: 'canTimeoutReveal',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: '_gameId', type: 'uint256' }],
+    outputs: [
+      { name: 'canTimeout', type: 'bool' },
+      { name: 'winnerIfTimeout', type: 'address' }
+    ]
+  },
   
   // 提取奖励
-  "function withdrawPrize() external returns(bool)",
-  "function getPendingWithdrawals(address player) external view returns(uint256)",
+  {
+    name: 'withdrawPrize',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [],
+    outputs: [{ name: '', type: 'bool' }]
+  },
+  {
+    name: 'getPendingWithdrawals',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'player', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }]
+  },
   
   // 游戏管理函数
-  "function cancelGame(uint256 _gameId) external",
+  {
+    name: 'cancelGame',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: '_gameId', type: 'uint256' }],
+    outputs: []
+  },
 
   // 管理员函数
-  "function adminAddress() external view returns (address)",
-  "function setAdmin(address _newAdmin) external",
-  "function withdrawFees(uint256 _amount) external",
-  "function withdrawAllFunds(uint256 _amount) external",
-  "function accumulatedFees() external view returns (uint256)",
+  {
+    name: 'adminAddress',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'address' }]
+  },
+  {
+    name: 'setAdmin',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: '_newAdmin', type: 'address' }],
+    outputs: []
+  },
+  {
+    name: 'withdrawFees',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: '_amount', type: 'uint256' }],
+    outputs: []
+  },
+  {
+    name: 'withdrawAllFunds',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [{ name: '_amount', type: 'uint256' }],
+    outputs: []
+  },
+  {
+    name: 'accumulatedFees',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }]
+  },
 
   // 读取函数
-  "function games(uint256) external view returns (address playerA, address playerB, uint256 bet, uint256 timeoutInterval, uint256 revealDeadline, uint256 creationTime, uint256 joinDeadline, uint256 totalTurns, uint256 currentTurn, bytes32 commitA, bytes32 commitB, uint8 moveA, uint8 moveB, uint8 scoreA, uint8 scoreB, uint8 state, uint256 timeoutCommit, uint256 commitDeadline)",
+  {
+    name: 'games',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: '', type: 'uint256' }],
+    outputs: [
+      { name: 'playerA', type: 'address' },
+      { name: 'playerB', type: 'address' },
+      { name: 'bet', type: 'uint256' },
+      { name: 'timeoutInterval', type: 'uint256' },
+      { name: 'revealDeadline', type: 'uint256' },
+      { name: 'creationTime', type: 'uint256' },
+      { name: 'joinDeadline', type: 'uint256' },
+      { name: 'totalTurns', type: 'uint256' },
+      { name: 'currentTurn', type: 'uint256' },
+      { name: 'commitA', type: 'bytes32' },
+      { name: 'commitB', type: 'bytes32' },
+      { name: 'moveA', type: 'uint8' },
+      { name: 'moveB', type: 'uint8' },
+      { name: 'scoreA', type: 'uint8' },
+      { name: 'scoreB', type: 'uint8' },
+      { name: 'state', type: 'uint8' },
+      { name: 'timeoutCommit', type: 'uint256' },
+      { name: 'commitDeadline', type: 'uint256' }
+    ]
+  },
  
   // 事件
-  "event GameCreated(uint256 indexed gameId, address indexed creator, uint256 bet, uint256 totalTurns)",
-  "event PlayerJoined(uint256 indexed gameId, address indexed player)",
-  "event MoveCommitted(uint256 indexed gameId, address indexed player, uint256 currentTurn)",
-  "event AllCommitted(uint256 indexed gameId, uint256 currentTurn)",
-  "event MoveRevealed(uint256 indexed gameId, address indexed player, uint8 move, uint256 currentTurn)",
-  "event TurnCompleted(uint256 indexed gameId, address winner, uint256 currentTurn)",
-  "event GameFinished(uint256 indexed gameId, address winner, uint256 prize)",
-  "event GameCancelled(uint256 indexed gameId)",
-  "event PrizeAvailable(address indexed player, uint256 amount)",
-  "event PrizeWithdrawn(address indexed player, uint256 amount)",
-  "event FeeCollected(uint256 gameId, uint256 feeAmount)",
-  "event FeeWithdrawn(address indexed admin, uint256 amount)"
+  {
+    name: 'GameCreated',
+    type: 'event',
+    inputs: [
+      { indexed: true, name: 'gameId', type: 'uint256' },
+      { indexed: true, name: 'creator', type: 'address' },
+      { indexed: false, name: 'bet', type: 'uint256' },
+      { indexed: false, name: 'totalTurns', type: 'uint256' }
+    ]
+  },
+  {
+    name: 'PlayerJoined',
+    type: 'event',
+    inputs: [
+      { indexed: true, name: 'gameId', type: 'uint256' },
+      { indexed: true, name: 'player', type: 'address' }
+    ]
+  },
+  {
+    name: 'MoveCommitted',
+    type: 'event',
+    inputs: [
+      { indexed: true, name: 'gameId', type: 'uint256' },
+      { indexed: true, name: 'player', type: 'address' },
+      { indexed: false, name: 'currentTurn', type: 'uint256' }
+    ]
+  },
+  {
+    name: 'AllCommitted',
+    type: 'event',
+    inputs: [
+      { indexed: true, name: 'gameId', type: 'uint256' },
+      { indexed: false, name: 'currentTurn', type: 'uint256' }
+    ]
+  },
+  {
+    name: 'MoveRevealed',
+    type: 'event',
+    inputs: [
+      { indexed: true, name: 'gameId', type: 'uint256' },
+      { indexed: true, name: 'player', type: 'address' },
+      { indexed: false, name: 'move', type: 'uint8' },
+      { indexed: false, name: 'currentTurn', type: 'uint256' }
+    ]
+  },
+  {
+    name: 'TurnCompleted',
+    type: 'event',
+    inputs: [
+      { indexed: true, name: 'gameId', type: 'uint256' },
+      { indexed: false, name: 'winner', type: 'address' },
+      { indexed: false, name: 'currentTurn', type: 'uint256' }
+    ]
+  },
+  {
+    name: 'GameFinished',
+    type: 'event',
+    inputs: [
+      { indexed: true, name: 'gameId', type: 'uint256' },
+      { indexed: false, name: 'winner', type: 'address' },
+      { indexed: false, name: 'prize', type: 'uint256' }
+    ]
+  },
+  {
+    name: 'GameCancelled',
+    type: 'event',
+    inputs: [
+      { indexed: true, name: 'gameId', type: 'uint256' }
+    ]
+  },
+  {
+    name: 'PrizeAvailable',
+    type: 'event',
+    inputs: [
+      { indexed: true, name: 'player', type: 'address' },
+      { indexed: false, name: 'amount', type: 'uint256' }
+    ]
+  },
+  {
+    name: 'PrizeWithdrawn',
+    type: 'event',
+    inputs: [
+      { indexed: true, name: 'player', type: 'address' },
+      { indexed: false, name: 'amount', type: 'uint256' }
+    ]
+  },
+  {
+    name: 'FeeCollected',
+    type: 'event',
+    inputs: [
+      { indexed: false, name: 'gameId', type: 'uint256' },
+      { indexed: false, name: 'feeAmount', type: 'uint256' }
+    ]
+  },
+  {
+    name: 'FeeWithdrawn',
+    type: 'event',
+    inputs: [
+      { indexed: true, name: 'admin', type: 'address' },
+      { indexed: false, name: 'amount', type: 'uint256' }
+    ]
+  }
 ];
 
-// 代币ABI
+// 代币ABI - 使用Wagmi v1兼容的结构化格式
 export const TOKEN_ABI = [
-  "function approve(address spender, uint256 amount) external returns (bool)",
-  "function balanceOf(address account) external view returns (uint256)",
-  "function transfer(address to, uint256 amount) external returns (bool)",
-  "function transferFrom(address from, address to, uint256 amount) external returns (bool)",
-  "function allowance(address owner, address spender) external view returns (uint256)"
+  {
+    name: 'approve',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'spender', type: 'address' },
+      { name: 'amount', type: 'uint256' }
+    ],
+    outputs: [{ name: '', type: 'bool' }]
+  },
+  {
+    name: 'balanceOf',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }]
+  },
+  {
+    name: 'transfer',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'amount', type: 'uint256' }
+    ],
+    outputs: [{ name: '', type: 'bool' }]
+  },
+  {
+    name: 'transferFrom',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'from', type: 'address' },
+      { name: 'to', type: 'address' },
+      { name: 'amount', type: 'uint256' }
+    ],
+    outputs: [{ name: '', type: 'bool' }]
+  },
+  {
+    name: 'allowance',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'spender', type: 'address' }
+    ],
+    outputs: [{ name: '', type: 'uint256' }]
+  }
 ];

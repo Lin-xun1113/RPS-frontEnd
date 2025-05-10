@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/router';
-import { useAccount, useProvider, useSigner } from 'wagmi';
+import { useAccount, usePublicClient, useWalletClient } from 'wagmi';
+import { readContract, writeContract, watchContractEvent } from 'wagmi/actions';
 import Layout from '../components/Layout';
 import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
@@ -50,8 +51,8 @@ const GamesContent = dynamic(() => Promise.resolve(GamesWithoutLayout), {
 function GamesWithoutLayout() {
   const router = useRouter();
   const { isConnected, address } = useAccount();
-  const provider = useProvider();
-  const { data: signer } = useSigner(); // 直接使用wagmi的useSigner钩子
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient(); // 使用v1版本的useWalletClient代替useSigner
   
   // 初始化主要state hooks
   const [games, setGames] = useState([]);
@@ -64,13 +65,13 @@ function GamesWithoutLayout() {
   const [isMounted, setIsMounted] = useState(false); // 用于客户端渲染检测
   const [maxBlockRange, setMaxBlockRange] = useState(20000); // 默认查询最大20000个区块
   const [loadingMoreBlocks, setLoadingMoreBlocks] = useState(false); // 加载更多区块状态
-  
-  // 调试日志 - signer状态
+  const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+  // 调试日志 - walletClient状态
   useEffect(() => {
     if (isMounted) {
-      console.log('Signer状态更新:', signer ? '已加载' : '未加载');
+      console.log('WalletClient状态更新:', walletClient ? '已加载' : '未加载');
     }
-  }, [signer, isMounted]);
+  }, [walletClient, isMounted]);
   
   // 客户端挂载检测 - 设置客户端状态
   useEffect(() => {
@@ -80,23 +81,18 @@ function GamesWithoutLayout() {
     }
   }, []);
 
-  // 使用useMemo缓存合约实例
-  const contract = useMemo(() => {
-    if (!provider) return null;
-    return new ethers.Contract(
-      ROCK_PAPER_SCISSORS_ADDRESS, 
-      ABI, 
-      provider
-    );
-  }, [provider]);
+  // 使用 Wagmi v1 方式创建合约访问 
+  // 注意：在v1中不再使用ethers.Contract创建方式
+  // 而是直接使用readContract/writeContract actions
   
   // 从合约事件获取游戏列表（使用动态区块范围和分页优化性能）
   const fetchGameIdsFromEvents = useCallback(async (maxResults = 50, minDesiredResults = 5, customBlockRange = null) => {
     try {
-      if (!contract) return [];
+      if (!publicClient) return [];
       
-      // 获取当前区块高度
-      const latestBlock = await provider.getBlockNumber();
+      // 获取当前区块高度 - 使用 Wagmi v1 publicClient
+      const blockNumber = await publicClient.getBlockNumber();
+      const latestBlock = Number(blockNumber);
       console.log('当前区块高度:', latestBlock);
       
       // 如果提供了自定义区块范围，则直接使用
@@ -106,12 +102,23 @@ function GamesWithoutLayout() {
         
         console.log(`查询区块范围: 从 ${fromBlock} 到最新区块`);
         
-        // 获取GameCreated事件
-        const createEvents = await contract.queryFilter(
-          contract.filters.GameCreated(), 
-          fromBlock, 
-          'latest'
-        );
+        // 使用 Wagmi v1 的 publicClient 获取GameCreated事件 - 使用结构化ABI对象
+        const createEvents = await publicClient.getContractEvents({
+          address: ROCK_PAPER_SCISSORS_ADDRESS,
+          abi: [{
+            name: 'GameCreated',
+            type: 'event',
+            inputs: [
+              { indexed: true, name: 'gameId', type: 'uint256' },
+              { indexed: true, name: 'creator', type: 'address' },
+              { indexed: false, name: 'bet', type: 'uint256' },
+              { indexed: false, name: 'totalTurns', type: 'uint256' }
+            ]
+          }],
+          eventName: 'GameCreated',
+          fromBlock: BigInt(fromBlock),
+          toBlock: 'latest'
+        });
         
         console.log(`查询到 ${createEvents.length} 个游戏创建事件`);
         
@@ -119,11 +126,35 @@ function GamesWithoutLayout() {
         const gameIds = createEvents
           .slice(0, maxResults)
           .map(event => {
-            // ...获取游戏数据的逻辑保持不变...
-            const gameId = event.args[0].toString();
-            const creator = event.args[1];
-            const bet = event.args[2];
-            const totalTurns = event.args[3];
+            console.log('事件数据结构:', event);
+            
+            // 兼容两种可能的结构：Wagmi v1的对象形式和旧版的数组形式
+            const args = event.args;
+            let gameId, creator, bet, totalTurns;
+            
+            if (args && typeof args === 'object' && !Array.isArray(args)) {
+              // 如果args是对象格式（Wagmi v1风格）
+              gameId = args.gameId;
+              creator = args.creator;
+              bet = args.bet;
+              totalTurns = args.totalTurns;
+            } else if (Array.isArray(args)) {
+              // 如果args是数组格式（传统风格）
+              gameId = args[0];
+              creator = args[1];
+              bet = args[2];
+              totalTurns = args[3];
+            } else {
+              console.error('无法解析事件参数:', event);
+              return null;  // 跳过无法解析的事件
+            }
+            
+            // 添加空值检查
+            if (!gameId || !bet) {
+              console.error('事件数据不完整:', event);
+              return null;
+            }
+            
             const isTokenGame = bet.toString() === '0';
             let creationTime = new Date().getTime();
             
@@ -137,10 +168,11 @@ function GamesWithoutLayout() {
               betAmount: bet,
               blockNumber: event.blockNumber,
               totalTurns: typeof totalTurns === 'object' && totalTurns.toNumber ? totalTurns.toNumber() : Number(totalTurns || 0),
-              gameType: isTokenGame ? 'token' : 'eth',
+              gameType: isTokenGame ? 'token' : 'MAG',
               createdAt: creationTime,
             };
-          });
+          })
+          .filter(item => item !== null);  // 过滤掉所有null值
         
         return gameIds;
       }
@@ -156,12 +188,23 @@ function GamesWithoutLayout() {
         
         console.log(`尝试查询 ${currentMaxBlocks} 个区块，从 ${fromBlock} 到最新区块`);
         
-        // 获取GameCreated事件
-        createEvents = await contract.queryFilter(
-          contract.filters.GameCreated(), 
-          fromBlock, 
-          'latest'
-        );
+        // 获取GameCreated事件 - 使用 Wagmi v1 API 和结构化ABI对象
+        createEvents = await publicClient.getContractEvents({
+          address: ROCK_PAPER_SCISSORS_ADDRESS,
+          abi: [{
+            name: 'GameCreated',
+            type: 'event',
+            inputs: [
+              { indexed: true, name: 'gameId', type: 'uint256' },
+              { indexed: true, name: 'creator', type: 'address' },
+              { indexed: false, name: 'bet', type: 'uint256' },
+              { indexed: false, name: 'totalTurns', type: 'uint256' }
+            ]
+          }],
+          eventName: 'GameCreated',
+          fromBlock: BigInt(fromBlock),
+          toBlock: 'latest'
+        });
         
         console.log(`查询到 ${createEvents.length} 个游戏创建事件`);
         
@@ -178,10 +221,38 @@ function GamesWithoutLayout() {
       const gameIds = createEvents
         .slice(0, maxResults)
         .map(event => {
-          const gameId = event.args[0].toString();
-          const creator = event.args[1];
-          const bet = event.args[2];
-          const totalTurns = event.args[3];
+          // Wagmi v1中事件的args是一个对象，而不是数组
+          console.log('事件数据结构:', event);
+          
+          // 兼容两种可能的结构:
+          // 1. 如果 args 是一个对象，直接访问其属性
+          // 2. 如果 args 是一个数组，继续使用原来的方式
+          const args = event.args;
+          let gameId, creator, bet, totalTurns;
+          
+          if (args && typeof args === 'object' && !Array.isArray(args)) {
+            // 使用命名属性访问
+            gameId = args.gameId ? args.gameId.toString() : '';
+            creator = args.creator;
+            bet = args.bet;
+            totalTurns = args.totalTurns;
+          } else if (Array.isArray(args)) {
+            // 如果是数组则使用索引访问
+            gameId = args[0] ? args[0].toString() : '';
+            creator = args[1];
+            bet = args[2];
+            totalTurns = args[3];
+          } else {
+            // 如果参数无法解析，设置默认值
+            console.error('无法解析事件参数:', event);
+            return null;
+          }
+          // 添加空值检查，确保 bet 和 totalTurns 存在
+          if (!bet || !totalTurns) {
+            console.error('事件数据不完整:', event);
+            return null;
+          }
+          
           // 根据bet金额判断游戏类型（0表示代币游戏，>0表示ETH游戏）
           const isTokenGame = bet.toString() === '0';
           let creationTime = new Date().getTime(); // 使用当前时间作为创建时间
@@ -197,23 +268,26 @@ function GamesWithoutLayout() {
             betAmount: bet,
             blockNumber: event.blockNumber,
             totalTurns: typeof totalTurns === 'object' && totalTurns.toNumber ? totalTurns.toNumber() : Number(totalTurns || 0),
-            gameType: isTokenGame ? 'token' : 'eth',
+            gameType: isTokenGame ? 'token' : 'MAG',
             createdAt: creationTime,
           };
-        });
+        })
+        // 过滤掉所有null或undefined值，确保数据的安全性
+        .filter(item => item !== null && item !== undefined);
       
+      console.log('处理后的游戏列表:', gameIds);
       return gameIds;
     } catch (error) {
       console.error('[生产环境错误] 获取游戏事件失败:', error);
       setError('无法连接区块链网络，请检查您的网络连接并刷新页面');
       return [];
     }
-  }, [contract, provider]);
+  }, [publicClient]);
 
   // 批量获取游戏详情
   const fetchGameDetails = useCallback(async (gameBasicInfoList) => {
     try {
-      if (!contract || !gameBasicInfoList.length) return [];
+      if (!publicClient || !gameBasicInfoList.length) return [];
       
       // 批量获取游戏详情
       const promises = gameBasicInfoList.map(async (basicInfo) => {
@@ -223,8 +297,13 @@ function GamesWithoutLayout() {
           // 尝试获取游戏状态
           let creator, player2, bet, totalTurns, player1Score, player2Score, currentTurn, state, joinDeadline;
           try {
-            // 注意：直接使用games函数
-            const gameInfo = await contract.games(gameId);
+            // 使用 Wagmi v1 readContract API 获取游戏信息
+            const gameInfo = await readContract({
+              address: ROCK_PAPER_SCISSORS_ADDRESS,
+              abi: ABI,
+              functionName: 'games',
+              args: [gameId]
+            });
             
             // 保存原始数据方便调试
             const rawGameInfo = [];
@@ -247,6 +326,11 @@ function GamesWithoutLayout() {
             joinDeadline = gameInfo[6]; // 加入游戏截止时间
             totalTurns = gameInfo[7]; // 总回合数
             currentTurn = gameInfo[8]; // 当前回合
+            
+            // 检查游戏类型 - 覆盖basicInfo中可能不正确的gameType
+            // 添加调试信息显示原始数据
+            console.log(`游戏 #${gameId} 原始数据:
+betAmount: ${bet.toString()}`);
             const commitA = gameInfo[9]; // 玩家A的提交哈希
             const commitB = gameInfo[10]; // 玩家B的提交哈希
             const moveA = gameInfo[11]; // 玩家A的移动
@@ -269,7 +353,7 @@ function GamesWithoutLayout() {
           return {
             ...basicInfo,
             status: GAME_STATES[state] || 'unknown',
-            player2: player2 !== ethers.constants.AddressZero ? player2 : null,
+            player2: player2.toLowerCase() !== ZERO_ADDRESS.toLowerCase() ? player2 : null,
             player1Score: typeof player1Score === 'object' && player1Score.toNumber ? player1Score.toNumber() : Number(player1Score || 0),
             player2Score: typeof player2Score === 'object' && player2Score.toNumber ? player2Score.toNumber() : Number(player2Score || 0),
             currentTurn: typeof currentTurn === 'object' && currentTurn.toNumber ? currentTurn.toNumber() : Number(currentTurn || 0),
@@ -291,11 +375,11 @@ function GamesWithoutLayout() {
       console.error('[生产环境错误] 批量获取游戏详情失败:', error);
       return [];
     }
-  }, [contract]);
+  }, [publicClient]);
 
   // 主获取游戏函数（生产环境实现）
   const fetchGames = useCallback(async (customBlockRange = null) => {
-    if (!isConnected || !contract) return;
+    if (!isConnected || !publicClient) return;
 
     try {
       // 只有在正常加载时设置loading状态，在加载更多区块时不设置
@@ -337,8 +421,11 @@ function GamesWithoutLayout() {
         });
         console.log('我的游戏筛选结果:', filteredGames);
       } else {
-        // 按游戏类型筛选 (eth/token)
+        // 按游戏类型筛选 (MAG/token)
+        console.log('筛选游戏类型:', filter);
+        console.log('所有游戏的类型:', gamesWithDetails.map(g => ({id: g.id, type: g.gameType})));
         filteredGames = gamesWithDetails.filter(game => game.gameType === filter);
+        console.log('筛选后的游戏:', filteredGames.map(g => ({id: g.id, type: g.gameType})));
       }
       
       // 如果选择只显示可加入的游戏，进一步筛选
@@ -365,14 +452,14 @@ function GamesWithoutLayout() {
           const isCreator = game.creator && game.creator.toLowerCase() === address?.toLowerCase();
           
           // 判断游戏是否已有第二个玩家
-          const hasSecondPlayer = game.player2 && game.player2 !== ethers.constants.AddressZero;
+          const hasSecondPlayer = game.player2 && game.player2.toLowerCase() !== ZERO_ADDRESS.toLowerCase();
           
           // 根据多种方式判断游戏是否处于'CREATED'状态
           const isCreatedState = 
             gameStatus === 'CREATED' || 
             gameStateNumeric === 0 || 
             statusText === '等待玩家' ||
-            (game.player2 === ethers.constants.AddressZero && game.state === 0);
+            (game.player2 === null && game.state === 0);
             
           // 只返回正在等待玩家加入且当前用户不是创建者的游戏
           const canJoin = isCreatedState && !isCreator && !hasSecondPlayer;
@@ -389,14 +476,19 @@ function GamesWithoutLayout() {
         console.log('筛选后游戏状态:', filteredGames.map(g => ({id: g.id, status: g.status, normalizedStatus: String(g.status).toUpperCase()})));
       }
       
-      // 排序：按创建时间/ID降序
+      // 排序：按创建时间/ID降序 - 处理BigInt类型
       filteredGames.sort((a, b) => {
         // 优先按区块号排序（如果有）
         if (a.blockNumber && b.blockNumber) {
-          return b.blockNumber - a.blockNumber;
+          // 处理BigInt类型，先转为字符串再转为数字进行比较
+          const blockNumA = typeof a.blockNumber === 'bigint' ? Number(a.blockNumber) : a.blockNumber;
+          const blockNumB = typeof b.blockNumber === 'bigint' ? Number(b.blockNumber) : b.blockNumber;
+          return blockNumB - blockNumA;
         }
-        // 其次按ID排序
-        return parseInt(b.id) - parseInt(a.id);
+        // 其次按ID排序 - 确保ID也正确转换
+        const idA = typeof a.id === 'bigint' ? Number(a.id) : parseInt(a.id);
+        const idB = typeof b.id === 'bigint' ? Number(b.id) : parseInt(b.id);
+        return idB - idA;
       });
       
       setGames(filteredGames);
@@ -408,7 +500,7 @@ function GamesWithoutLayout() {
     } finally {
       setLoading(false);
     }
-  }, [contract, filter, isConnected, fetchGameIdsFromEvents, fetchGameDetails, address]);
+  }, [publicClient, filter, isConnected, fetchGameIdsFromEvents, fetchGameDetails, address]);
 
   // 客户端渲染检测
   useEffect(() => {
@@ -418,7 +510,7 @@ function GamesWithoutLayout() {
 
   // 初始加载和筛选切换时获取游戏列表
   useEffect(() => {
-    if (isConnected && contract && isMounted) {
+    if (isConnected && publicClient && isMounted) {
       console.log('筛选条件改变，重新获取游戏数据');
       console.log('filter:', filter, 'showJoinableOnly:', showJoinableOnly);
       fetchGames();
@@ -427,20 +519,15 @@ function GamesWithoutLayout() {
       setLoading(false);
       setError(null);
     }
-  }, [isConnected, contract, fetchGames, isMounted, filter, showJoinableOnly]);
+  }, [isConnected, publicClient, fetchGames, isMounted, filter, showJoinableOnly]);
   
   // 监听合约事件实现实时更新
   useEffect(() => {
-    if (!contract || !isConnected) return;
+    if (!publicClient || !isConnected) return;
 
     const setupEventListeners = () => {
-      // 游戏创建事件
-      const gameCreatedFilter = contract.filters.GameCreated();
-      // 游戏加入事件
-      const gameJoinedFilter = contract.filters.PlayerJoined();
-      // 游戏完成事件
-      const gameFinishedFilter = contract.filters.GameFinished();
-
+      // 使用 Wagmi v1 的 watchContractEvent API 监听事件
+      
       const handleGameEvent = () => {
         // 使用节流避免短时间内多次更新
         if (!isRefreshing) {
@@ -451,22 +538,45 @@ function GamesWithoutLayout() {
         }
       };
 
-      // 添加事件监听器
-      contract.on(gameCreatedFilter, handleGameEvent);
-      contract.on(gameJoinedFilter, handleGameEvent);
-      contract.on(gameFinishedFilter, handleGameEvent);
+      // 添加事件监听器 - 使用 watchContractEvent
+      const unwatch1 = watchContractEvent(
+        {
+          address: ROCK_PAPER_SCISSORS_ADDRESS,
+          abi: ABI,
+          eventName: 'GameCreated',
+        },
+        handleGameEvent
+      );
+      
+      const unwatch2 = watchContractEvent(
+        {
+          address: ROCK_PAPER_SCISSORS_ADDRESS,
+          abi: ABI,
+          eventName: 'PlayerJoined',
+        },
+        handleGameEvent
+      );
+      
+      const unwatch3 = watchContractEvent(
+        {
+          address: ROCK_PAPER_SCISSORS_ADDRESS,
+          abi: ABI,
+          eventName: 'GameFinished',
+        },
+        handleGameEvent
+      );
 
       // 清理函数
       return () => {
-        contract.off(gameCreatedFilter, handleGameEvent);
-        contract.off(gameJoinedFilter, handleGameEvent);
-        contract.off(gameFinishedFilter, handleGameEvent);
+        unwatch1();
+        unwatch2();
+        unwatch3();
       };
     };
 
     const cleanup = setupEventListeners();
     return cleanup;
-  }, [contract, isConnected, isRefreshing, fetchGames]);
+  }, [publicClient, isConnected, isRefreshing, fetchGames, watchContractEvent]);
 
   // 点击加入游戏
   const handleJoinGame = useCallback(async (gameId, bet) => {
@@ -476,8 +586,8 @@ function GamesWithoutLayout() {
     }
 
     try {
-      // 创建可签名合约实例
-      const signerContract = contract.connect(signer);
+      // 使用 Wagmi v1 方式访问合约功能
+      // 不再使用 contract.connect(signer) 模式
 
       // 是否是代币游戏
       const game = games.find(g => g.id === gameId);
@@ -490,25 +600,32 @@ function GamesWithoutLayout() {
         if (isTokenGame) {
           // 如果是代币游戏，需要先授权代币使用
           try {
-            // 创建代币合约实例
-            const tokenContract = new ethers.Contract(
-              WINNING_TOKEN_ADDRESS,
-              [
-                'function approve(address spender, uint256 amount) external returns (bool)',
+            // 使用 Wagmi v1 API 检查代币授权
+            const allowance = await readContract({
+              address: WINNING_TOKEN_ADDRESS,
+              abi: [
                 'function allowance(address owner, address spender) external view returns (uint256)'
               ],
-              signer
-            );
-            
-            // 检查当前授权额度
-            const address = await signer.getAddress();
-            const allowance = await tokenContract.allowance(address, ROCK_PAPER_SCISSORS_ADDRESS);
+              functionName: 'allowance',
+              args: [address, ROCK_PAPER_SCISSORS_ADDRESS],
+            });
             
             // 如果授权额度不足，需要请求授权
-            if (allowance.lt(1)) {
+            if (ethers.BigNumber.from(allowance).lt(1)) {
               toast.loading('正在授权代币...', { id: 'join-game' });
-              const approveTx = await tokenContract.approve(ROCK_PAPER_SCISSORS_ADDRESS, 1);
-              await approveTx.wait();
+              
+              // 使用 Wagmi v1 writeContract 实现代币授权
+              const { hash: approveTxHash } = await writeContract({
+                address: WINNING_TOKEN_ADDRESS,
+                abi: [
+                  'function approve(address spender, uint256 amount) external returns (bool)'
+                ],
+                functionName: 'approve',
+                args: [ROCK_PAPER_SCISSORS_ADDRESS, 1],
+              });
+              
+              // 等待授权交易确认
+              await publicClient.waitForTransactionReceipt({ hash: approveTxHash });
               toast.loading('授权成功，正在加入游戏...', { id: 'join-game' });
             }
           } catch (approveError) {
@@ -517,18 +634,29 @@ function GamesWithoutLayout() {
             return;
           }
           
-          // 授权成功后加入代币游戏
-          tx = await signerContract.joinGameWithToken(gameId);
+          // 授权成功后使用 Wagmi v1 API 加入代币游戏
+          const { hash: txHash } = await writeContract({
+            address: ROCK_PAPER_SCISSORS_ADDRESS,
+            abi: ABI,
+            functionName: 'joinGameWithToken',
+            args: [gameId],
+          });
           console.log('加入代币游戏:', gameId);
         } else {
-          // ETH游戏使用joinGameWithEth函数，需要发送相同金额的ETH
-          tx = await signerContract.joinGameWithEth(gameId, { value: bet });
-          console.log('加入MAG游戏:', gameId, '下注:', ethers.utils.formatEther(bet), 'MAG');
+          // ETH游戏使用 Wagmi v1 API 的 writeContract
+          const { hash: txHash } = await writeContract({
+            address: ROCK_PAPER_SCISSORS_ADDRESS,
+            abi: ABI,
+            functionName: 'joinGameWithEth',
+            args: [gameId],
+            value: bet, // 直接传入 value 参数
+          });
+          console.log('加入MAG游戏:', gameId, '下注:', formatEther(bet), 'MAG');
         }
         
         // 等待交易确认
         toast.loading('等待区块确认...', { id: 'join-game' });
-        await tx.wait();
+        const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash });
         
         toast.success('成功加入游戏!', { id: 'join-game' });
       } catch (error) {
@@ -555,11 +683,11 @@ function GamesWithoutLayout() {
       console.error('[生产环境错误] 加入游戏失败:', error);
       toast.error(`加入游戏失败: ${error.message || error.reason || '未知错误'}`, { id: 'join-game' });
     }
-  }, [contract, games, router, signer]);
+  }, [publicClient, walletClient, games, router, address]);
   
   // 加载更多区块的函数
   const loadMoreBlocks = useCallback(async () => {
-    if (loadingMoreBlocks || !contract || !isConnected) return;
+    if (loadingMoreBlocks || !publicClient || !isConnected) return;
     
     try {
       setLoadingMoreBlocks(true);
@@ -579,7 +707,7 @@ function GamesWithoutLayout() {
     } finally {
       setLoadingMoreBlocks(false);
     }
-  }, [contract, isConnected, fetchGames, loadingMoreBlocks, maxBlockRange]);
+  }, [publicClient, isConnected, fetchGames, loadingMoreBlocks, maxBlockRange]);
   
   // 手动刷新游戏列表
   const handleRefresh = useCallback(async () => {
@@ -607,11 +735,12 @@ function GamesWithoutLayout() {
   const GameCard = ({ game, currentUser, onJoin }) => {
     const isCreator = game.creator?.toLowerCase() === currentUser?.toLowerCase();
     // 判断游戏是否已有第二个玩家 (无论状态如何)
-    const hasSecondPlayer = game.player2 && game.player2 !== ethers.constants.AddressZero;
+    const hasSecondPlayer = game.player2 && game.player2.toLowerCase() !== ZERO_ADDRESS.toLowerCase();
     // 使用大小写不敏感的比较，并且确保没有第二个玩家
     const canJoin = String(game.status).toUpperCase() === 'CREATED' && !isCreator && !hasSecondPlayer;
     const isParticipant = isCreator || game.player2?.toLowerCase() === currentUser?.toLowerCase();
-    const formattedBet = game.betAmount ? ethers.utils.formatEther(game.betAmount) : '0';
+    // 使用formatEther从viem而不是ethers
+    const formattedBet = game.betAmount ? (Number(game.betAmount) / 1e18).toString() : '0';
     
     return (
       <motion.div
@@ -626,11 +755,11 @@ function GamesWithoutLayout() {
             </p>
           </div>
           <div className={`px-3 py-1 rounded-full text-sm font-medieval ${
-            game.gameType === 'eth' 
+            game.gameType === 'MAG' 
               ? 'bg-blue-100 text-blue-800' 
               : 'bg-purple-100 text-purple-800'
           }`}>
-            {game.gameType === 'eth' ? 'MAG游戏' : '代币游戏'}
+            {game.gameType === 'MAG' ? 'MAG游戏' : '代币游戏'}
           </div>
         </div>
         
@@ -639,7 +768,7 @@ function GamesWithoutLayout() {
             <span className="text-amber-700">回合数:</span>
             <span className="font-medium text-amber-900">{game.totalTurns}</span>
           </div>
-          {game.gameType === 'eth' && (
+          {game.gameType === 'MAG' && (
             <div className="flex justify-between mb-2">
               <span className="text-amber-700">投注金额:</span>
               <span className="font-medium text-amber-900">
@@ -850,7 +979,7 @@ function GamesWithoutLayout() {
                       
                       // 模拟用户点击另一个分类，然后再点回来
                       // 先切换到一个不同的分类
-                      const tempFilter = currentFilter === 'all' ? 'eth' : 'all';
+                      const tempFilter = currentFilter === 'all' ? 'MAG' : 'all';
                       console.log('临时切换到分类:', tempFilter);
                       
                       // 执行顺序：先切换到临时分类，然后快速切回原分类
@@ -879,8 +1008,8 @@ function GamesWithoutLayout() {
                     全部游戏
                   </FilterButton>
                   <FilterButton 
-                    active={filter === 'eth'}
-                    onClick={() => setFilter('eth')}
+                    active={filter === 'MAG'}
+                    onClick={() => setFilter('MAG')}
                   >
                     MAG游戏
                   </FilterButton>
@@ -927,7 +1056,7 @@ function GamesWithoutLayout() {
                   <div className="mb-6">
                     <img src="/images/empty-scroll.png" alt="无游戏" className="w-32 h-32 mx-auto opacity-60" />
                   </div>
-                  <p className="text-amber-800 font-medieval mb-4">暂无{filter !== 'all' ? `${filter === 'eth' ? 'ETH' : '代币'}类型的` : ''}游戏</p>
+                  <p className="text-amber-800 font-medieval mb-4">暂无{filter !== 'all' ? `${filter === 'MAG' ? 'MAG' : '代币'}类型的` : ''}游戏</p>
                   <button 
                     onClick={() => router.push('/create-game')}
                     className="py-2 px-6 bg-amber-100 text-amber-800 font-medieval rounded-md border border-amber-300 hover:bg-amber-200 transition-all duration-300"
@@ -951,7 +1080,7 @@ function GamesWithoutLayout() {
               {/* 游戏数量显示 */}
               {!loading && games.length > 0 && (
                 <div className="text-center mt-8 text-amber-700 text-sm">
-                  当前显示 {games.length} 个{filter !== 'all' ? (filter === 'eth' ? 'MAG' : '代币') : ''}游戏
+                  当前显示 {games.length} 个{filter !== 'all' ? (filter === 'MAG' ? 'MAG' : '代币') : ''}游戏
                 </div>
               )}
               

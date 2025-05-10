@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { ethers } from 'ethers';
-import { useAccount, useContract, useSigner, useProvider, useBalance } from 'wagmi';
+import { useAccount, useWalletClient, usePublicClient, useBalance } from 'wagmi';
+import { readContract, writeContract, getContract } from 'wagmi/actions';
+import { formatEther, parseEther, isAddress } from 'viem';
 import { Toaster, toast } from 'react-hot-toast';
 import Head from 'next/head';
 import Layout from '../components/Layout';
@@ -10,13 +12,16 @@ import { ROCK_PAPER_SCISSORS_ADDRESS, ABI } from '../constants/contractInfo';
 export default function AdminPage() {
   const router = useRouter();
   const { address, isConnected } = useAccount();
-  const provider = useProvider();
-  const { data: signer } = useSigner();
-  const contract = useContract({
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
+  
+  // Wagmi v1 方式创建合约实例
+  const contract = walletClient ? getContract({
     address: ROCK_PAPER_SCISSORS_ADDRESS,
     abi: ABI,
-    signerOrProvider: signer || provider,
-  });
+    walletClient,
+    publicClient,
+  }) : null;
 
   // State variables
   const [isAdmin, setIsAdmin] = useState(false);
@@ -33,17 +38,40 @@ export default function AdminPage() {
     const checkAdmin = async () => {
       if (isConnected && contract) {
         try {
-          const admin = await contract.adminAddress();
+          // 使用 readContract 获取 adminAddress - 使用结构化ABI对象
+          const admin = await readContract({
+            address: ROCK_PAPER_SCISSORS_ADDRESS,
+            abi: [{
+              name: 'adminAddress',
+              type: 'function',
+              stateMutability: 'view',
+              inputs: [],
+              outputs: [{type: 'address'}]
+            }],
+            functionName: 'adminAddress',
+          });
           setAdminAddress(admin);
           setIsAdmin(address && admin.toLowerCase() === address.toLowerCase());
           
-          // Get contract balance
-          const balance = await provider.getBalance(ROCK_PAPER_SCISSORS_ADDRESS);
-          setContractBalance(ethers.utils.formatEther(balance));
+          // Get contract balance - 使用 publicClient 代替 provider
+          const balance = await publicClient.getBalance({
+            address: ROCK_PAPER_SCISSORS_ADDRESS,
+          });
+          setContractBalance(formatEther(balance));
           
-          // Get accumulated fees
-          const fees = await contract.accumulatedFees();
-          setAccumulatedFees(ethers.utils.formatEther(fees));
+          // Get accumulated fees - 使用结构化ABI对象
+          const fees = await readContract({
+            address: ROCK_PAPER_SCISSORS_ADDRESS,
+            abi: [{
+              name: 'accumulatedFees',
+              type: 'function',
+              stateMutability: 'view',
+              inputs: [],
+              outputs: [{type: 'uint256'}]
+            }],
+            functionName: 'accumulatedFees',
+          });
+          setAccumulatedFees(formatEther(fees));
         } catch (error) {
           console.error('Error checking admin status:', error);
           toast.error('无法获取管理员状态');
@@ -52,12 +80,12 @@ export default function AdminPage() {
     };
 
     checkAdmin();
-  }, [isConnected, contract, address, provider]);
+  }, [isConnected, contract, address, publicClient]);
 
   // Handle set new admin
   const handleSetAdmin = async (e) => {
     e.preventDefault();
-    if (!ethers.utils.isAddress(newAdminAddress)) {
+    if (!isAddress(newAdminAddress)) {
       toast.error('请输入有效的以太坊地址');
       return;
     }
@@ -66,10 +94,15 @@ export default function AdminPage() {
       setLoading(true);
       toast.loading('更改管理员中...', { id: 'admin' });
       
-      const tx = await contract.setAdmin(newAdminAddress);
-      toast.loading('等待区块链确认...', { id: 'admin' });
+      const { hash } = await writeContract({
+        address: ROCK_PAPER_SCISSORS_ADDRESS,
+        abi: ABI,
+        functionName: 'setAdmin',
+        args: [newAdminAddress]
+      });
       
-      await tx.wait();
+      // 等待交易确认
+      await publicClient.waitForTransactionReceipt({ hash });
       setAdminAddress(newAdminAddress);
       setNewAdminAddress('');
       
@@ -85,11 +118,11 @@ export default function AdminPage() {
   // Handle withdraw fees
   const handleWithdrawFees = async (e) => {
     e.preventDefault();
-    let amount = ethers.utils.parseEther('0'); // Default to 0, which means withdraw all
+    let amount = parseEther('0'); // Default to 0, which means withdraw all
     
     if (withdrawAmount && withdrawAmount !== '0') {
       try {
-        amount = ethers.utils.parseEther(withdrawAmount);
+        amount = parseEther(withdrawAmount);
       } catch (error) {
         toast.error('请输入有效的提取金额');
         return;
@@ -100,17 +133,28 @@ export default function AdminPage() {
       setLoading(true);
       toast.loading('提取协议费用中...', { id: 'withdraw' });
       
-      const tx = await contract.withdrawFees(amount);
-      toast.loading('等待区块链确认...', { id: 'withdraw' });
+      const { hash } = await writeContract({
+        address: ROCK_PAPER_SCISSORS_ADDRESS,
+        abi: ABI,
+        functionName: 'withdrawFees',
+        args: [amount]
+      });
       
-      await tx.wait();
+      // 等待交易确认
+      await publicClient.waitForTransactionReceipt({ hash });
       
       // Update accumulated fees and contract balance
-      const fees = await contract.accumulatedFees();
-      setAccumulatedFees(ethers.utils.formatEther(fees));
+      const fees = await readContract({
+        address: ROCK_PAPER_SCISSORS_ADDRESS,
+        abi: ABI,
+        functionName: 'accumulatedFees',
+      });
+      setAccumulatedFees(formatEther(fees));
       
-      const balance = await provider.getBalance(ROCK_PAPER_SCISSORS_ADDRESS);
-      setContractBalance(ethers.utils.formatEther(balance));
+      const balance = await publicClient.getBalance({
+        address: ROCK_PAPER_SCISSORS_ADDRESS
+      });
+      setContractBalance(formatEther(balance));
       
       setWithdrawAmount('');
       toast.success('协议费用提取成功!', { id: 'withdraw' });
@@ -125,11 +169,11 @@ export default function AdminPage() {
   // Handle withdraw all funds (emergency)
   const handleWithdrawAllFunds = async (e) => {
     e.preventDefault();
-    let amount = ethers.utils.parseEther('0'); // Default to 0, which means withdraw maximum available
+    let amount = parseEther('0'); // Default to 0, which means withdraw maximum available
     
     if (withdrawAllAmount && withdrawAllAmount !== '0') {
       try {
-        amount = ethers.utils.parseEther(withdrawAllAmount);
+        amount = parseEther(withdrawAllAmount);
       } catch (error) {
         toast.error('请输入有效的提取金额');
         return;
@@ -144,14 +188,21 @@ export default function AdminPage() {
       setLoading(true);
       toast.loading('紧急提款中...', { id: 'emergency' });
       
-      const tx = await contract.withdrawAllFunds(amount);
-      toast.loading('等待区块链确认...', { id: 'emergency' });
+      const { hash } = await writeContract({
+        address: ROCK_PAPER_SCISSORS_ADDRESS,
+        abi: ABI,
+        functionName: 'withdrawAllFunds',
+        args: [amount]
+      });
       
-      await tx.wait();
+      // 等待交易确认
+      await publicClient.waitForTransactionReceipt({ hash });
       
       // Update contract balance
-      const balance = await provider.getBalance(ROCK_PAPER_SCISSORS_ADDRESS);
-      setContractBalance(ethers.utils.formatEther(balance));
+      const balance = await publicClient.getBalance({
+        address: ROCK_PAPER_SCISSORS_ADDRESS
+      });
+      setContractBalance(formatEther(balance));
       
       setWithdrawAllAmount('');
       toast.success('资金提取成功!', { id: 'emergency' });

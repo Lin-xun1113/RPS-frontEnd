@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { ethers } from 'ethers';
 import { useAccount } from 'wagmi';
+import { formatEther } from 'viem';
 import { shortenAddress } from '../utils/addressUtils';
 import { GAME_STATES } from '../constants/contractInfo';
 
@@ -94,7 +95,7 @@ const GameCard = ({ game }) => {
         
         <p className="text-sm text-amber-800">
           <span className="font-semibold">赌注: </span>
-          {ethers.utils.formatEther(game.betAmount)} {game.gameType.toUpperCase()}
+          {game.gameType === 'token' ? '代币游戏' : `${formatEther(BigInt(game.betAmount))} MAG`}
         </p>
         
         <p className="text-sm text-amber-800">

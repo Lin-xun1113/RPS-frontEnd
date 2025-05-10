@@ -113,8 +113,13 @@ const CrownSnowfall = () => {
       // 设置旋转速度
       Body.setAngularVelocity(crown, (Math.random() - 0.5) * 0.05);
       
-      // 添加到物理世界
-      Composite.add(engineRef.current.world, crown);
+      // 添加到物理世界 - 先检查engineRef.current是否存在
+      if (engineRef.current && engineRef.current.world) {
+        Composite.add(engineRef.current.world, crown);
+      } else {
+        // 如果物理引擎不可用，直接返回而不创建皇冠
+        return;
+      }
       
       // 设置超时消失
       setTimeout(() => {

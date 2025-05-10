@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/router';
 import { toast, Toaster } from 'react-hot-toast';
-import { useAccount, useContract, useSigner, useBalance } from 'wagmi';
+import { useAccount, useBalance, useWalletClient, usePublicClient } from 'wagmi';
+import { readContract, writeContract, getContract } from 'wagmi/actions';
 import { ethers } from 'ethers';
+import { formatEther, parseEther } from 'viem';
 import Layout from '../components/Layout';
 import Image from 'next/image';
 import { ROCK_PAPER_SCISSORS_ADDRESS, ABI, WINNING_TOKEN_ADDRESS, TOKEN_ABI } from '../constants/contractInfo';
@@ -11,10 +13,11 @@ import { ROCK_PAPER_SCISSORS_ADDRESS, ABI, WINNING_TOKEN_ADDRESS, TOKEN_ABI } fr
 export default function CreateGame() {
   const router = useRouter();
   const { isConnected, address } = useAccount();
-  const { data: signer } = useSigner();
+  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
   const { data: balance } = useBalance({ address });
   
-  const [gameType, setGameType] = useState('eth'); // 'eth' or 'token'
+  const [gameType, setGameType] = useState('MAG'); // 'MAG' or 'token'
   const [totalTurns, setTotalTurns] = useState(3);
   const [timeoutInterval, setTimeoutInterval] = useState(300); // 5分钟（秒）
   const [timeoutCommit, setTimeoutCommit] = useState(300); // 5分钟（秒）提交超时
@@ -22,17 +25,21 @@ export default function CreateGame() {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState('');
   
-  const contract = useContract({
+  // Wagmi v1 方式创建合约实例
+  const contract = walletClient ? getContract({
     address: ROCK_PAPER_SCISSORS_ADDRESS,
     abi: ABI,
-    signerOrProvider: signer,
-  });
+    walletClient,
+    publicClient,
+  }) : null;
   
-  const tokenContract = useContract({
+  // 代币合约
+  const tokenContract = walletClient ? getContract({
     address: WINNING_TOKEN_ADDRESS,
     abi: TOKEN_ABI,
-    signerOrProvider: signer,
-  });
+    walletClient,
+    publicClient,
+  }) : null;
   
   const handleCreateGame = async () => {
     if (!isConnected || !contract) {
@@ -76,45 +83,128 @@ export default function CreateGame() {
       let tx;
       let gameId;
       
-      if (gameType === 'eth') {
+      if (gameType === 'MAG') {
         // 检查ETH余额
-        if (balance && ethers.utils.parseEther(betAmount).gt(balance.value)) {
+        if (balance && parseEther(betAmount) > balance.value) {
           toast.error('MAG余额不足');
           setError('MAG余额不足');
           setIsCreating(false);
           return;
         }
         
-        // 创建ETH游戏
+        // 创建ETH游戏 - 使用 Wagmi v1 的 writeContract API
         toast.loading('正在创建MAG游戏...', { id: 'createGame' });
-        // 参数顺序为：totalTurns, timeoutInterval, timeoutCommit
-        tx = await contract.createGameWithEth(totalTurns, timeoutInterval, timeoutCommit, {
-          value: ethers.utils.parseEther(betAmount)
+        
+        // 使用 writeContract 实现 createGameWithEth 调用
+        const { hash } = await writeContract({
+          address: ROCK_PAPER_SCISSORS_ADDRESS,
+          abi: [{
+            name: 'createGameWithEth',
+            type: 'function',
+            stateMutability: 'payable',
+            inputs: [
+              { name: '_totalTurns', type: 'uint256' },
+              { name: '_timeoutInterval', type: 'uint256' },
+              { name: '_timeoutCommit', type: 'uint256' }
+            ],
+            outputs: [{ type: 'uint256' }]
+          }],
+          functionName: 'createGameWithEth',
+          args: [totalTurns, timeoutInterval, timeoutCommit],
+          value: parseEther(betAmount)
         });
+        
+        // 等待交易确认
+        tx = await publicClient.waitForTransactionReceipt({ hash });
       } else {
         // 代币游戏
         // 检查代币余额和授权
         try {
-          const tokenBalance = await tokenContract.balanceOf(address);
-          if (tokenBalance.lt(1)) {
+          // 使用 readContract 获取代币余额
+          const tokenBalance = await readContract({
+            address: WINNING_TOKEN_ADDRESS,
+            abi: [{
+              name: 'balanceOf',
+              type: 'function',
+              stateMutability: 'view',
+              inputs: [{ name: 'account', type: 'address' }],
+              outputs: [{ type: 'uint256' }]
+            }],
+            functionName: 'balanceOf',
+            args: [address]
+          });
+          
+          if (ethers.BigNumber.from(tokenBalance).lt(1)) {
             toast.error('代币余额不足');
             setError('代币余额不足');
             setIsCreating(false);
             return;
           }
           
-          const allowance = await tokenContract.allowance(address, ROCK_PAPER_SCISSORS_ADDRESS);
-          if (allowance.lt(1)) {
+          // 使用 readContract 查询代币授权
+          const allowance = await readContract({
+            address: WINNING_TOKEN_ADDRESS,
+            abi: [{
+              name: 'allowance',
+              type: 'function',
+              stateMutability: 'view',
+              inputs: [
+                { name: 'owner', type: 'address' },
+                { name: 'spender', type: 'address' }
+              ],
+              outputs: [{ type: 'uint256' }]
+            }],
+            functionName: 'allowance',
+            args: [address, ROCK_PAPER_SCISSORS_ADDRESS]
+          });
+          
+          if (ethers.BigNumber.from(allowance).lt(1)) {
             toast.loading('正在授权代币使用权限...', { id: 'approveToken' });
-            const approveTx = await tokenContract.approve(ROCK_PAPER_SCISSORS_ADDRESS, 1);
-            await approveTx.wait();
+            
+            // 使用 writeContract 进行代币授权
+            const { hash: approveHash } = await writeContract({
+              address: WINNING_TOKEN_ADDRESS,
+              abi: [{
+                name: 'approve',
+                type: 'function',
+                stateMutability: 'nonpayable',
+                inputs: [
+                  { name: 'spender', type: 'address' },
+                  { name: 'amount', type: 'uint256' }
+                ],
+                outputs: [{ type: 'bool' }]
+              }],
+              functionName: 'approve',
+              args: [ROCK_PAPER_SCISSORS_ADDRESS, 1]
+            });
+            
+            await publicClient.waitForTransactionReceipt({ hash: approveHash });
             toast.success('授权成功', { id: 'approveToken' });
           }
           
           // 创建代币游戏
           toast.loading('正在创建代币游戏...', { id: 'createGame' });
-          // 与ETH游戏保持一致的参数顺序: totalTurns, timeoutInterval, timeoutCommit
-          tx = await contract.createGameWithToken(totalTurns, timeoutInterval, timeoutCommit);
+          
+          // 使用 writeContract 创建代币游戏
+          const { hash } = await writeContract({
+            address: ROCK_PAPER_SCISSORS_ADDRESS,
+            abi: [{
+              name: 'createGameWithToken',
+              type: 'function',
+              stateMutability: 'nonpayable',
+              inputs: [
+                { name: '_totalTurns', type: 'uint256' },
+                { name: '_timeoutInterval', type: 'uint256' },
+                { name: '_timeoutCommit', type: 'uint256' }
+              ],
+              outputs: [{ type: 'uint256' }]
+            }],
+            functionName: 'createGameWithToken',
+            args: [totalTurns, timeoutInterval, timeoutCommit]
+          });
+          
+          // 等待交易确认
+          tx = await publicClient.waitForTransactionReceipt({ hash });
         } catch (tokenError) {
           console.error('代币交互失败:', tokenError);
           toast.error(`代币操作失败: ${tokenError.message.slice(0, 50)}...`, { id: 'approveToken' });
@@ -124,11 +214,8 @@ export default function CreateGame() {
         }
       }
       
-      toast.loading('等待交易确认...', { id: 'createGame' });
-      
-      const receipt = await tx.wait();
-      
       // 从事件中获取游戏ID - 尝试多种方式解析
+      const receipt = tx; // tx已经是receipt，因为我们使用了waitForTransactionReceipt
       console.log('交易收据：', receipt);
       
       // 方法1：检查标准事件格式
@@ -145,7 +232,7 @@ export default function CreateGame() {
           // 检查主题数量是否符合GameCreated事件
           if (log.topics && log.topics.length >= 2) {
             // 第二个主题通常是游戏ID（如果它是indexed参数）
-            const potentialGameId = ethers.BigNumber.from(log.topics[1]).toString();
+            const potentialGameId = BigInt(log.topics[1]).toString();
             console.log('方法2找到潜在的游戏ID:', potentialGameId);
             if (!gameId) gameId = potentialGameId;
           }
@@ -222,8 +309,8 @@ export default function CreateGame() {
               
               <div className="flex justify-center gap-4">
                 <GameTypeButton 
-                  active={gameType === 'eth'}
-                  onClick={() => setGameType('eth')}
+                  active={gameType === 'MAG'}
+                  onClick={() => setGameType('MAG')}
                   icon="/images/eth-icon.png"
                   label="MAG游戏"
                 />
@@ -298,7 +385,7 @@ export default function CreateGame() {
               </div>
             </div>
             
-            {gameType === 'eth' && (
+            {gameType === 'MAG' && (
               <div className="mb-8">
                 <label className="block text-amber-800 font-medieval mb-2">投注金额 (MAG)</label>
                 <div className="relative">
@@ -311,12 +398,12 @@ export default function CreateGame() {
                     className="w-full py-2 px-3 bg-amber-50 border-2 border-amber-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                   />
                   <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                    <span className="text-amber-800">ETH</span>
+                    <span className="text-amber-800">MAG</span>
                   </div>
                 </div>
                 {balance && (
                   <p className="text-sm text-amber-700 mt-1">
-                    余额: {parseFloat(ethers.utils.formatEther(balance.value)).toFixed(4)} ETH
+                    余额: {parseFloat(formatEther(balance.value)).toFixed(4)} MAG
                   </p>
                 )}
               </div>
@@ -343,7 +430,7 @@ export default function CreateGame() {
           <ul className="list-disc pl-5 space-y-2 text-amber-800">
             <li>回合数必须是奇数，这样可以保证游戏有胜负结果。</li>
             <li>超时时间表示每回合的移动提交和揭示阶段的最长等待时间。</li>
-            <li>ETH游戏：双方投注相同金额的MAG，赢家获得总投注额的90%（10%为平台费用）。</li>
+            <li>MAG游戏：双方投注相同金额的MAG，赢家获得总投注额的90%（10%为平台费用）。</li>
             <li>代币游戏：双方各投入1个WinningToken代币，赢家获得全部2个代币。</li>
             <li>游戏结束后，胜利者需要手动提取奖励。</li>
           </ul>

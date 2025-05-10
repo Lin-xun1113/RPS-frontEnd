@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useProvider } from 'wagmi';
+import { usePublicClient } from 'wagmi';
 
 /**
  * 倒计时组件 - 显示游戏中的倒计时，使用链上时间而非本地时间
@@ -7,17 +7,18 @@ import { useProvider } from 'wagmi';
 const CountdownTimer = ({ deadline, onTimeout, isPaused = false }) => {
   const [timeLeft, setTimeLeft] = useState(0);
   const [blockchainTime, setBlockchainTime] = useState(0);
-  const provider = useProvider();
+  const publicClient = usePublicClient();
   
   // 获取最新区块时间
   useEffect(() => {
-    if (!provider || isPaused) return;
+    if (!publicClient || isPaused) return;
     
     const fetchBlockchainTime = async () => {
       try {
-        const block = await provider.getBlock('latest');
+        // 使用Wagmi v1 publicClient获取区块
+        const block = await publicClient.getBlock();
         if (block && block.timestamp) {
-          setBlockchainTime(block.timestamp);
+          setBlockchainTime(Number(block.timestamp));
         }
       } catch (error) {
         console.error('获取区块时间失败:', error);
@@ -33,7 +34,7 @@ const CountdownTimer = ({ deadline, onTimeout, isPaused = false }) => {
     return () => {
       clearInterval(blockTimeInterval);
     };
-  }, [provider, isPaused]);
+  }, [publicClient, isPaused]);
   
   // 使用区块链时间计算倒计时
   useEffect(() => {

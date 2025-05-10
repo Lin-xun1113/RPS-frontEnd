@@ -1,30 +1,38 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useAccount, useContract, useProvider } from 'wagmi';
+import { useAccount, usePublicClient, useReadContract } from 'wagmi';
+import { readContract } from 'wagmi/actions';
 import { ROCK_PAPER_SCISSORS_ADDRESS, ABI } from '../constants/contractInfo';
 
 const AdminNavLink = () => {
   const { address, isConnected } = useAccount();
-  const provider = useProvider();
+  const publicClient = usePublicClient();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
-  
-  const contract = useContract({
-    address: ROCK_PAPER_SCISSORS_ADDRESS,
-    abi: ABI,
-    signerOrProvider: provider,
-  });
 
   useEffect(() => {
     const checkAdminStatus = async () => {
-      if (!isConnected || !address || !contract) {
+      if (!isConnected || !address || !publicClient) {
         setIsAdmin(false);
         setLoading(false);
         return;
       }
 
       try {
-        const adminAddress = await contract.adminAddress();
+        // 使用Wagmi v1的readContract方式获取管理员地址
+        // 对ABI进行结构化，避免字符串解析问题
+        const adminAddress = await readContract({
+          address: ROCK_PAPER_SCISSORS_ADDRESS,
+          abi: [{
+            name: 'adminAddress',
+            type: 'function',
+            stateMutability: 'view',
+            inputs: [],
+            outputs: [{type: 'address'}]
+          }],
+          functionName: 'adminAddress',
+        });
+        
         setIsAdmin(address.toLowerCase() === adminAddress.toLowerCase());
       } catch (error) {
         console.error('获取管理员状态失败:', error);
@@ -35,7 +43,7 @@ const AdminNavLink = () => {
     };
 
     checkAdminStatus();
-  }, [isConnected, address, contract]);
+  }, [isConnected, address, publicClient]);
 
   if (loading || !isAdmin) return null;
 

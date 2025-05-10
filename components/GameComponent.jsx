@@ -2,10 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/router';
-import { useAccount, useContract, useSigner, useProvider } from 'wagmi';
+import { useAccount, useWalletClient, usePublicClient } from 'wagmi';
+import { readContract, writeContract, getContract } from 'wagmi/actions';
 import { ethers } from 'ethers';
 import Image from 'next/image';
 import { toast, Toaster } from 'react-hot-toast';
+import { getRandomBytes, keccak256, toUtf8Bytes, toHex, fromHex, stringToBytes, encodePacked } from 'viem';
 
 // 导入UI组件
 import MoveSelector from './MoveSelector';
@@ -20,8 +22,8 @@ export default function GameComponent() {
   const router = useRouter();
   const { id: gameId } = router.query;
   const { isConnected, address } = useAccount();
-  const provider = useProvider();
-  const { data: signer } = useSigner();
+  const publicClient = usePublicClient();
+  const { data: walletClient } = useWalletClient();
   
   const [game, setGame] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -50,24 +52,30 @@ export default function GameComponent() {
   const mountedRef = React.useRef(false);
   const saltRef = React.useRef(null);
 
-  const contract = useContract({
+  // Wagmi v1 方式创建合约实例
+  const contract = walletClient ? getContract({
     address: ROCK_PAPER_SCISSORS_ADDRESS,
     abi: ABI,
-    signerOrProvider: signer || provider,
-  });
+    walletClient,
+    publicClient,
+  }) : null;
   
   // 获取链上时间的函数
   const fetchBlockchainTime = useCallback(async () => {
     try {
-      const block = await provider.getBlock('latest');
+      const block = await publicClient.getBlock({
+        blockTag: 'latest'
+      });
       if (block && block.timestamp) {
         setBlockchainTime(block.timestamp);
-        console.log('获取到的链上时间:', new Date(block.timestamp * 1000).toLocaleString());
+        // 将BigInt类型转换为Number再进行计算
+        const timestampNumber = Number(block.timestamp);
+        console.log('获取到的链上时间:', new Date(timestampNumber * 1000).toLocaleString());
       }
     } catch (error) {
       console.error('获取区块时间失败:', error);
     }
-  }, [provider]);
+  }, [publicClient]);
 
   // 使用链上时间判断是否超时
   const isTimeoutByBlockchain = useCallback((deadline) => {
@@ -75,50 +83,59 @@ export default function GameComponent() {
     return blockchainTime > deadline;
   }, [blockchainTime]);
   
-  // 初始化和清理效果
+  // 初始化和清理效果 - 修复无限循环问题
   useEffect(() => {
-    // 启动时获取游戏数据
-    if (isConnected && contract && gameId) {
-      // 立即获取区块链时间和游戏详情
-      fetchBlockchainTime().then(() => {
-        fetchGameDetails();
-      });
-      
-      // 定期更新区块链时间 - 每10秒更新一次
-      const blockchainTimeIntervalId = setInterval(() => {
-        fetchBlockchainTime();
-      }, 10000);
-      
-      // 保存计时器ID供清理使用
+    // 仅在这些关键依赖项变化时初始化
+    if (!isConnected || !gameId) return;
+    
+    console.log('初始化游戏组件:', gameId);
+    
+    // 启动时获取区块链时间和游戏详情 - 使用try/catch增强错误处理
+    const initGame = async () => {
+      try {
+        await fetchBlockchainTime();
+        await fetchGameDetails();
+      } catch (error) {
+        console.error('游戏初始化失败:', error);
+        setError('连接区块链时出现问题，请刷新页面或稍后再试');
+      }
+    };
+    
+    initGame();
+    
+    // 定期更新区块链时间 - 每10秒更新一次
+    const blockchainTimeIntervalId = setInterval(() => {
+      fetchBlockchainTime().catch(err => 
+        console.error('获取区块链时间失败:', err)
+      );
+    }, 10000);
+    
+    // 使用固定的刷新间隔而不是基于状态的变动间隔
+    // 这避免了因状态改变导致的重复创建定时器
+    const REFRESH_INTERVAL = 15000; // 固定为15秒以减少复杂性
+    
+    const refreshIntervalId = setInterval(() => {
+      console.log(`定期刷新游戏数据: 游戏ID=${gameId}`);
+      fetchGameDetails().catch(err => 
+        console.error('获取游戏数据失败:', err)
+      );
+    }, REFRESH_INTERVAL);
+    
+    // 一次性设置后不再强调计时器ID
+    if (!blockchainTimeInterval) {
       setBlockchainTimeInterval(blockchainTimeIntervalId);
-      
-      // 智能刷新机制 - 根据游戏状态调整刷新频率
-      const getRefreshRate = () => {
-        // 如果状态已锁定，减少刷新频率以提高界面稳定性
-        if (phaseLocked) return 30000; // 30秒
-        
-        // 如果玩家刚刚采取了动作，也减少刷新频率
-        if (actionTaken) return 20000; // 20秒
-        
-        // 正常默认刷新频率
-        return 15000; // 15秒
-      };
-      
-      // 使用智能刷新频率设置定时器
-      const interval = setInterval(() => {
-        console.log(`智能刷新:状态=${phase}, 锁定=${phaseLocked}, 刷新间隔=${getRefreshRate()}ms`);
-        fetchGameDetails();
-      }, getRefreshRate());
-      
-      setRefreshInterval(interval);
-      
-      // 检查localStorage中保存的相关盐值
-      if (typeof window !== 'undefined') {
-        const savedSalt = localStorage.getItem(`salt_${gameId}_${address}`);
-        if (savedSalt) {
-          setSalt(savedSalt);
-          saltRef.current = savedSalt;
-        }
+    }
+    
+    if (!refreshInterval) {
+      setRefreshInterval(refreshIntervalId);
+    }
+    
+    // 检查localStorage中保存的相关盐值 - 仅在初始化时执行一次
+    if (typeof window !== 'undefined' && address) {
+      const savedSalt = localStorage.getItem(`salt_${gameId}_${address}`);
+      if (savedSalt) {
+        setSalt(savedSalt);
+        saltRef.current = savedSalt;
       }
     }
     
@@ -132,7 +149,9 @@ export default function GameComponent() {
       }
       console.log('游戏组件定时器已清理');
     };
-  }, [isConnected, contract, gameId, phase, phaseLocked, actionTaken, fetchBlockchainTime]);
+    // 只包含真正需要触发整个useEffect重新运行的依赖项
+    // 不包含会频繁变化的状态变量
+  }, [isConnected, gameId, address]);
   
   // 回合变化时重置选择的移动
   useEffect(() => {
@@ -178,7 +197,13 @@ export default function GameComponent() {
 
   // 从区块链获取游戏详情
   const fetchGameDetails = useCallback(async (isManualRefresh = false) => {
-    if (!gameId || !isConnected || !contract) return;
+    // 修改条件检查，使用publicClient替代contract
+    if (!gameId || !isConnected || !publicClient) {
+      console.log('无法获取游戏详情: 缺少必要参数', { 
+        gameId, isConnected, hasPublicClient: !!publicClient 
+      });
+      return;
+    }
     
     // 如果是手动刷新，忽略锁定状态，强制刷新
     // 否则，如果状态已锁定且当前在“已揭示”状态，降低获取数据的频率
@@ -201,9 +226,34 @@ export default function GameComponent() {
       
       console.log('正在获取游戏 ID:', gameId, '的详细信息');
       
-      // 获取游戏基本信息
-      const gameInfo = await contract.games(gameId);
-      console.log('游戏基本信息:', gameInfo);
+      // 获取游戏基本信息，使用Wagmi v1的readContract方式
+      // 添加重试机制
+      let gameInfo;
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount < maxRetries) {
+        try {
+          gameInfo = await readContract({
+            address: ROCK_PAPER_SCISSORS_ADDRESS,
+            abi: ABI,
+            functionName: 'games',
+            args: [BigInt(gameId)]
+          });
+          console.log('游戏基本信息:', gameInfo);
+          break; // 获取成功，跳出循环
+        } catch (error) {
+          retryCount++;
+          console.warn(`获取游戏信息失败(尝试 ${retryCount}/${maxRetries}):`, error);
+          
+          if (retryCount >= maxRetries) {
+            throw new Error(`获取游戏信息失败，请刷新页面或检查网络连接: ${error.message}`);
+          }
+          
+          // 等待1秒后重试
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
       
       // 保存原始数据方便调试
       const rawGameInfo = [];
@@ -237,27 +287,30 @@ export default function GameComponent() {
       const timeoutCommit = gameInfo[16]; // 新增: 提交阶段超时时间
       const commitDeadline = gameInfo[17]; // 新增: 提交阶段截止时间
       
-      console.log('解析游戏数据 - 超时时间:', timeoutInterval.toString(), 
-                '总回合数:', totalTurns.toString(), 
-                '游戏状态:', state, 
-                '状态名称:', GAME_STATES[state]);
+      console.log('解析游戏数据 - 超时时间:', String(timeoutInterval), 
+                '总回合数:', String(totalTurns), 
+                '游戏状态:', Number(state), 
+                '状态名称:', GAME_STATES[Number(state)]);
       
-      console.log('游戏状态:', state, GAME_STATES[state]);
-      const isTokenGame = gameInfo.bet.eq(0); // 如果bet为0，则为Token游戏
+      console.log('游戏状态:', Number(state), GAME_STATES[Number(state)]);
+      const isTokenGame = bet === 0n; // 使用BigInt比较，0n是BigInt字面量
       
       // 检查并使用正确的状态值
       // 注意: 先打印状态数字值和字符串值，以便调试
-      console.log('当前游戏状态码:', state.toString(), '状态名:', GAME_STATES[state]);
+      const stateNum = Number(state);
+      console.log('当前游戏状态码:', stateNum, '状态名:', GAME_STATES[stateNum]);
       
-      // 检查是否已有两个玩家
-      const hasPlayer2 = player2 !== ethers.constants.AddressZero;
+      // 检查是否已有两个玩家 - 使用零地址常量
+      const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+      const hasPlayer2 = player2.toLowerCase() !== ZERO_ADDRESS.toLowerCase();
       console.log('第二个玩家状态:', hasPlayer2 ? '已加入' : '未加入', '玩家地址:', player2);
       
       // 检查CommitPhase状态
-      if (hasPlayer2 && state.toString() === '0') {
+      const stateNumber = Number(state);
+      if (hasPlayer2 && stateNumber === 0) {
         console.log('警告: 游戏已有第二个玩家但仍是Created状态，应该为CommitPhase');
         // // 这里我们将状态手动更正为CommitPhase(5)
-        // console.log('手动将状态从', GAME_STATES[state], '更正为', GAME_STATES[5]);
+        // console.log('手动将状态从', GAME_STATES[stateNumber], '更正为', GAME_STATES[5]);
         // state = 5; // 强制设置为CommitPhase
       }
       
@@ -277,10 +330,14 @@ export default function GameComponent() {
         
         console.log('💡 解析移动数据 - moveA:', moveA, 'moveB:', moveB);
         
+        // 定义常量 - 替换ethers常量
+        const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+        const HASH_ZERO = '0x0000000000000000000000000000000000000000000000000000000000000000';
+        
         // 创建玩家A的移动数据
-        if (creator !== ethers.constants.AddressZero) {
+        if (creator.toLowerCase() !== ZERO_ADDRESS.toLowerCase()) {
           player1Moves = {
-            committed: commitA && commitA !== ethers.constants.HashZero,
+            committed: commitA && commitA !== HASH_ZERO,
             revealed: moveA > 0,
             move: moveA
           };
@@ -288,9 +345,9 @@ export default function GameComponent() {
         }
         
         // 创建玩家B的移动数据
-        if (player2 !== ethers.constants.AddressZero) {
+        if (player2.toLowerCase() !== ZERO_ADDRESS.toLowerCase()) {
           player2Moves = {
-            committed: commitB && commitB !== ethers.constants.HashZero,
+            committed: commitB && commitB !== HASH_ZERO,
             revealed: moveB > 0,
             move: moveB
           };
@@ -299,10 +356,11 @@ export default function GameComponent() {
       } catch (error) {
         console.error('处理玩家移动数据时出错:', error.message);
         // 设置默认移动数据
-        if (creator !== ethers.constants.AddressZero) {
+        
+        if (creator.toLowerCase() !== ZERO_ADDRESS.toLowerCase()) {
           player1Moves = { committed: false, revealed: false, move: 0 };
         }
-        if (player2 !== ethers.constants.AddressZero) {
+        if (player2.toLowerCase() !== ZERO_ADDRESS.toLowerCase()) {
           player2Moves = { committed: false, revealed: false, move: 0 };
         }
       }
@@ -343,17 +401,19 @@ export default function GameComponent() {
       
       console.log('当前游戏状态:', GAME_STATES[state], '计算的提交超时时间:', commitPhaseDeadline, '揭示超时时间:', revealPhaseDeadline);
       
+      // 使用顶部定义的ZERO_ADDRESS常量
+        
       // 构造完整的游戏对象
       const gameData = {
         id: gameId,
         creator: creator,
-        player2: player2 !== ethers.constants.AddressZero ? player2 : null,
+        player2: player2.toLowerCase() !== ZERO_ADDRESS.toLowerCase() ? player2 : null,
         betAmount: bet,
         totalTurns: typeof totalTurns === 'object' && totalTurns.toNumber ? totalTurns.toNumber() : Number(totalTurns),
         currentTurn: typeof currentTurn === 'object' && currentTurn.toNumber ? currentTurn.toNumber() : Number(currentTurn),
         player1Score: typeof player1Score === 'object' && player1Score.toNumber ? player1Score.toNumber() : Number(player1Score),
         player2Score: typeof player2Score === 'object' && player2Score.toNumber ? player2Score.toNumber() : Number(player2Score),
-        gameType: isTokenGame ? 'token' : 'eth',
+        gameType: isTokenGame ? 'token' : 'MAG',
         state: state,
         timeoutInterval: timeoutInterval,
         joinDeadline: typeof joinDeadline === 'object' && joinDeadline.toNumber ? joinDeadline.toNumber() : Number(joinDeadline || 0),
@@ -571,7 +631,7 @@ else if (gameData.state === 0 || gameData.state === 5) {
   // 检查是否超时
   const isTimeoutExpired = (deadline) => {
     if (!deadline) return false;
-    if (!provider) return false;
+    if (!publicClient) return false;
     
     // 使用直接对比，因为这个函数会被频繁调用
     try {
@@ -606,34 +666,55 @@ else if (gameData.state === 0 || gameData.state === 5) {
       }
       
       let tx;
-      if (game.gameType === 'eth') {
+      if (game.gameType === 'MAG') {
         // 加入ETH游戏
         toast.loading('正在加入MAG游戏...', { id: 'joinGame' });
         
-        tx = await contract.joinGameWithEth(gameId, {
+        // 使用Wagmi v1的writeContract方式加入游戏
+        const { hash } = await writeContract({
+          address: ROCK_PAPER_SCISSORS_ADDRESS,
+          abi: ABI,
+          functionName: 'joinGameWithEth',
+          args: [BigInt(gameId)],
           value: game.betAmount // 使用与创建者相同的押注金额
         });
+        
+        // 等待交易确认
+        tx = { hash };
       } else {
-        // 加入代币游戏
-        const tokenContract = new ethers.Contract(
-          WINNING_TOKEN_ADDRESS,
-          ['function approve(address spender, uint256 amount) external returns (bool)'],
-          signer
-        );
+        // 加入代币游戏 - 使用Wagmi v1方式
         
         // 检查并授权代币
         toast.loading('正在授权代币...', { id: 'approveToken' });
-        const approveTx = await tokenContract.approve(ROCK_PAPER_SCISSORS_ADDRESS, 1);
-        await approveTx.wait();
+        
+        // 使用writeContract授权代币
+        const { hash: approveHash } = await writeContract({
+          address: WINNING_TOKEN_ADDRESS,
+          abi: TOKEN_ABI,
+          functionName: 'approve',
+          args: [ROCK_PAPER_SCISSORS_ADDRESS, 1n]  // 使用BigInt
+        });
+        
+        // 等待授权交易确认
+        await publicClient.waitForTransactionReceipt({ hash: approveHash });
         toast.success('授权成功', { id: 'approveToken' });
         
-        // 加入代币游戏
+        // 使用writeContract加入代币游戏
         toast.loading('正在加入代币游戏...', { id: 'joinGame' });
-        tx = await contract.joinGameWithToken(gameId);
+        
+        const { hash } = await writeContract({
+          address: ROCK_PAPER_SCISSORS_ADDRESS,
+          abi: ABI,
+          functionName: 'joinGameWithToken',
+          args: [BigInt(gameId)]
+        });
+        
+        // 等待加入游戏交易确认
+        tx = { hash };
       }
       
-      toast.loading('等待交易确认...', { id: 'joinGame' });
-      await tx.wait();
+      // 等待交易确认
+      await publicClient.waitForTransactionReceipt({ hash: tx.hash });
       toast.success('成功加入游戏！', { id: 'joinGame' });
       
       // 重新加载游戏数据
@@ -691,13 +772,14 @@ else if (gameData.state === 0 || gameData.state === 5) {
       let salt = prompt('请输入自定义盐值（建议8位以上随机字符串），如不输入将自动生成：');
       if (!salt || salt.length === 0) {
         // 自动生成
-        const saltBytes = ethers.utils.randomBytes(32);
-        salt = ethers.utils.hexlify(saltBytes);
+        // 使用viem的getRandomBytes替代ethers.utils.randomBytes
+        const saltBytes = getRandomBytes(32);
+        salt = toHex(saltBytes);
         toast.success('已自动生成安全盐值：' + salt);
       } else {
         // 将用户输入的字符串转换为bytes32格式
-        // 先将输入转为字节数组，再转为hex字符串
-        let saltUtf8Bytes = ethers.utils.toUtf8Bytes(salt);
+        // 使用viem的toUtf8Bytes替代ethers.utils.toUtf8Bytes
+        let saltUtf8Bytes = stringToBytes(salt);
         
         // 如果长度<32，则需要padding到32字节
         if (saltUtf8Bytes.length < 32) {
@@ -709,7 +791,7 @@ else if (gameData.state === 0 || gameData.state === 5) {
           saltUtf8Bytes = saltUtf8Bytes.slice(0, 32);
         }
         
-        salt = ethers.utils.hexlify(saltUtf8Bytes);
+        salt = toHex(saltUtf8Bytes);
         
         if (salt.length < 8) {
           toast(`您输入的盐值较短，安全性较低，但仍将使用`);
@@ -723,10 +805,12 @@ else if (gameData.state === 0 || gameData.state === 5) {
       console.log('选择的移动:', selectedMove);
       console.log('最终使用的盐值:', salt);
 
-      // 生成提交哈希
-      const moveHash = ethers.utils.solidityKeccak256(
-        ['uint8', 'bytes32', 'address'],
-        [selectedMove, salt, address]
+      // 生成提交哈希 - 使用viem的keccak256和encodePacked替代solidityKeccak256
+      const moveHash = keccak256(
+        encodePacked(
+          ['uint8', 'bytes32', 'address'],
+          [selectedMove, salt, address]
+        )
       );
 
       console.log('生成的移动哈希:', moveHash);
@@ -738,10 +822,17 @@ else if (gameData.state === 0 || gameData.state === 5) {
       
       // 调用合约提交移动
       toast.loading('正在提交移动...', { id: 'commitMove' });
-      const tx = await contract.commitMove(gameId, moveHash);
+      
+      // 使用Wagmi v1的writeContract方式提交移动
+      const { hash } = await writeContract({
+        address: ROCK_PAPER_SCISSORS_ADDRESS,
+        abi: ABI,
+        functionName: 'commitMove',
+        args: [BigInt(gameId), moveHash]
+      });
       
       toast.loading('等待区块链确认...', { id: 'commitMove' });
-      const receipt = await tx.wait();
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
       
       toast.success('移动提交成功!', { id: 'commitMove' });
       console.log('移动提交交易收据:', receipt);
@@ -769,12 +860,16 @@ else if (gameData.state === 0 || gameData.state === 5) {
       setLoading(true);
       setError(null);
       
-      // 调用智能合约的timeoutReveal函数
-      const signerContract = contract.connect(signer);
+      // 使用Wagmi v1 API检查是否可以超时
+      // 首先调用readContract检查超时条件
+      const canTimeout = await readContract({
+        address: ROCK_PAPER_SCISSORS_ADDRESS,
+        abi: ABI,
+        functionName: 'canTimeoutReveal',
+        args: [gameId],
+      });
       
-      // 首先检查是否满足超时条件
-      const canTimeout = await signerContract.canTimeoutReveal(gameId);
-      console.log('检查是否可以超时揭示:', canTimeout);
+      console.log('检查是否可以超时揝示:', canTimeout);
       
       if (!canTimeout[0]) {
         toast.error('当前不满足超时条件');
@@ -782,10 +877,19 @@ else if (gameData.state === 0 || gameData.state === 5) {
       }
       
       toast.loading('正在处理超时...', { id: 'timeout' });
-      const tx = await signerContract.timeoutReveal(gameId);
+      
+      // 使用Wagmi v1 API执行合约写入操作
+      const { hash } = await writeContract({
+        address: ROCK_PAPER_SCISSORS_ADDRESS,
+        abi: ABI,
+        functionName: 'timeoutReveal',
+        args: [gameId],
+      });
       
       toast.loading('等待区块链确认...', { id: 'timeout' });
-      await tx.wait();
+      
+      // 等待交易确认
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
       
       toast.success('超时处理成功！', { id: 'timeout' });
       
@@ -803,7 +907,7 @@ else if (gameData.state === 0 || gameData.state === 5) {
 
   // 超时处理：当对手没有在时间内提交移动时调用
   const handleTimeoutCommit = async () => {
-    if (!isConnected || !contract || !gameId) {
+    if (!isConnected || !gameId) {
       toast.error('请先连接钱包');
       return;
     }
@@ -812,11 +916,14 @@ else if (gameData.state === 0 || gameData.state === 5) {
       setLoading(true);
       setError(null);
       
-      // 调用智能合约的timeoutCommit函数
-      const signerContract = contract.connect(signer);
+      // 使用Wagmi v1 API检查是否可以超时
+      const canTimeout = await readContract({
+        address: ROCK_PAPER_SCISSORS_ADDRESS,
+        abi: ABI,
+        functionName: 'canTimeoutCommit',
+        args: [gameId],
+      });
       
-      // 首先检查是否满足超时条件
-      const canTimeout = await signerContract.canTimeoutCommit(gameId);
       console.log('检查是否可以超时提交:', canTimeout);
       
       if (!canTimeout[0]) {
@@ -824,11 +931,20 @@ else if (gameData.state === 0 || gameData.state === 5) {
         return;
       }
       
-      toast.loading('正在处理提交超时...', { id: 'timeout-commit' });
-      const tx = await signerContract.timeoutCommit(gameId);
+      toast.loading('正在处理超时...', { id: 'timeout' });
       
-      toast.loading('等待区块链确认...', { id: 'timeout-commit' });
-      await tx.wait();
+      // 使用Wagmi v1 API执行合约写入操作
+      const { hash } = await writeContract({
+        address: ROCK_PAPER_SCISSORS_ADDRESS,
+        abi: ABI,
+        functionName: 'timeoutCommit',
+        args: [gameId],
+      });
+      
+      toast.loading('等待区块链确认...', { id: 'timeout' });
+      
+      // 等待交易确认
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
       
       toast.success('提交超时处理成功！', { id: 'timeout-commit' });
       
@@ -846,7 +962,7 @@ else if (gameData.state === 0 || gameData.state === 5) {
 
   // 超时处理：当没有人在时间内加入游戏时调用
   const handleTimeoutJoin = async () => {
-    if (!isConnected || !contract || !gameId) {
+    if (!isConnected || !gameId) {
       toast.error('请先连接钱包');
       return;
     }
@@ -855,11 +971,14 @@ else if (gameData.state === 0 || gameData.state === 5) {
       setLoading(true);
       setError(null);
       
-      // 调用智能合约的timeoutJoin函数
-      const signerContract = contract.connect(signer);
+      // 使用Wagmi v1 API检查是否可以超时
+      const canTimeout = await readContract({
+        address: ROCK_PAPER_SCISSORS_ADDRESS,
+        abi: ABI,
+        functionName: 'canTimeoutJoin',
+        args: [gameId],
+      });
       
-      // 首先检查是否满足超时条件
-      const canTimeout = await signerContract.canTimeoutJoin(gameId);
       console.log('检查是否可以超时加入:', canTimeout);
       
       if (!canTimeout) {
@@ -868,10 +987,18 @@ else if (gameData.state === 0 || gameData.state === 5) {
       }
       
       toast.loading('正在处理超时...', { id: 'timeout' });
-      const tx = await signerContract.timeoutJoin(gameId);
+      
+      // 使用Wagmi v1 API执行合约写入操作
+      const { hash } = await writeContract({
+        address: ROCK_PAPER_SCISSORS_ADDRESS,
+        abi: ABI,
+        functionName: 'timeoutJoin',
+        args: [gameId],
+      });
       
       toast.loading('等待区块链确认...', { id: 'timeout' });
-      await tx.wait();
+      // 等待交易确认
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
       
       toast.success('游戏已取消！', { id: 'timeout' });
       
@@ -889,7 +1016,7 @@ else if (gameData.state === 0 || gameData.state === 5) {
 
   // 取消游戏（仅游戏创建者可调用）
   const handleCancelGame = async () => {
-    if (!isConnected || !contract || !gameId) {
+    if (!isConnected || !gameId) {
       toast.error('请先连接钱包');
       return;
     }
@@ -898,13 +1025,19 @@ else if (gameData.state === 0 || gameData.state === 5) {
       setLoading(true);
       setError(null);
       
-      const signerContract = contract.connect(signer);
-      
       toast.loading('正在取消游戏...', { id: 'cancel-game' });
-      const tx = await signerContract.cancelGame(Number(gameId));
+      
+      // 使用Wagmi v1 API执行合约写入操作
+      const { hash } = await writeContract({
+        address: ROCK_PAPER_SCISSORS_ADDRESS,
+        abi: ABI,
+        functionName: 'cancelGame',
+        args: [Number(gameId)],
+      });
       
       toast.loading('等待区块链确认...', { id: 'cancel-game' });
-      await tx.wait();
+      // 等待交易确认
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
       
       toast.success('游戏已成功取消！', { id: 'cancel-game' });
       
@@ -951,7 +1084,8 @@ else if (gameData.state === 0 || gameData.state === 5) {
         }
         
         // 处理手动输入的盐值，将其转换为与提交阶段相同的格式
-        let saltUtf8Bytes = ethers.utils.toUtf8Bytes(inputSalt);
+        // 使用viem的stringToBytes替换ethers.utils.toUtf8Bytes
+        let saltUtf8Bytes = stringToBytes(inputSalt);
         
         // 如果长度<32，则需要padding到32字节
         if (saltUtf8Bytes.length < 32) {
@@ -963,7 +1097,8 @@ else if (gameData.state === 0 || gameData.state === 5) {
           saltUtf8Bytes = saltUtf8Bytes.slice(0, 32);
         }
         
-        currentSalt = ethers.utils.hexlify(saltUtf8Bytes);
+        // 使用viem的toHex替换ethers.utils.hexlify
+        currentSalt = toHex(saltUtf8Bytes);
         
         if (inputSalt.length < 8) {
           toast(`您输入的盐值较短，安全性较低，但仍将使用`);
@@ -999,10 +1134,17 @@ else if (gameData.state === 0 || gameData.state === 5) {
       
       // 调用合约揭示移动
       toast.loading('正在揭示移动...', { id: 'revealMove' });
-      const tx = await contract.revealMove(gameId, selectedMove, currentSalt);
+      
+      // 使用Wagmi v1的writeContract方式揭示移动
+      const { hash } = await writeContract({
+        address: ROCK_PAPER_SCISSORS_ADDRESS,
+        abi: ABI,
+        functionName: 'revealMove',
+        args: [BigInt(gameId), selectedMove, currentSalt]
+      });
       
       toast.loading('等待区块链确认...', { id: 'revealMove' });
-      const receipt = await tx.wait();
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
       
       toast.success('移动揭示成功!', { id: 'revealMove' });
       console.log('移动揭示交易收据:', receipt);
@@ -1064,7 +1206,20 @@ else if (gameData.state === 0 || gameData.state === 5) {
     
     // 游戏存在但需要加入(游戏状态为'join')
     if (phase === 'join') {
-      return renderJoinGame();
+      return (
+        <div className="text-center">
+          <h2 className="text-2xl font-medieval text-blue-200 mb-4">加入游戏</h2>
+          <p className="text-blue-300 mb-4">游戏已创建，等待玩家加入</p>
+          <button
+            onClick={handleJoinGame}
+            disabled={joining || !isConnected}
+            className={`px-6 py-3 rounded-lg font-medieval text-lg ${joining ? 'bg-blue-800 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} text-white transition-colors duration-200`}
+          >
+            {joining ? '正在加入...' : '加入游戏'}
+          </button>
+          {error && <p className="text-red-500 mt-4">{error}</p>}
+        </div>
+      );
     }
     
     const isPlayer1 = address === game.creator;
@@ -1269,7 +1424,9 @@ else if (gameData.state === 0 || gameData.state === 5) {
             </div>
             <div>
               <span className="font-bold">投注: </span>
-              <span>{ethers.utils.formatEther(game.betAmount)} MAG</span>
+              <span>
+                {game.gameType === 'token' ? '代币游戏' : `${(Number(game.betAmount) / 1e18).toString()} MAG`}
+              </span>
             </div>
           </div>
           

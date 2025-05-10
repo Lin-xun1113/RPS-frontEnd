@@ -1,96 +1,197 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/router';
-import { useAccount, useContract, useProvider } from 'wagmi';
-import { ethers } from 'ethers';
+import { useAccount, usePublicClient } from 'wagmi';
+import { readContract, getContract } from 'wagmi/actions';
+import { formatEther } from 'viem';
+
+// 定义零地址常量
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 import Layout from '../components/Layout';
 import { ROCK_PAPER_SCISSORS_ADDRESS, ABI, MOVES, GAME_STATES } from '../constants/contractInfo';
 
 export default function History() {
   const router = useRouter();
   const { isConnected, address } = useAccount();
-  const provider = useProvider();
+  const publicClient = usePublicClient();
   const [games, setGames] = useState([]);
   const [loading, setLoading] = useState(true);
   const [blockRange, setBlockRange] = useState(50000); // 默认查询50000个区块
   const [loadingMore, setLoadingMore] = useState(false); // 加载更多状态
   
-  const contract = useContract({
-    address: ROCK_PAPER_SCISSORS_ADDRESS,
-    abi: ABI,
-    signerOrProvider: provider,
-  });
+  // Wagmi v1 不再使用 useContract钩子
+  // 而是使用 readContract和 getContract actions
   
   useEffect(() => {
-    if (isConnected && contract) {
+    if (isConnected && publicClient) {
       fetchGamesHistory();
     }
-  }, [isConnected, contract]);
+  }, [isConnected, publicClient]);
   
   // 从合约事件获取游戏列表的函数
   const fetchGameIdsFromEvents = async (maxBlocks = blockRange) => {
     try {
-      if (!contract) return [];
+      if (!publicClient) return [];
       
-      // 获取当前区块高度
-      const latestBlock = await provider.getBlockNumber();
+      // 获取当前区块高度 - 使用 publicClient
+      const blockNumber = await publicClient.getBlockNumber();
+      const latestBlock = Number(blockNumber);
       console.log('当前区块高度:', latestBlock);
       
       // 查询区块范围 - 从 latestBlock-maxBlocks 到最新区块
       const fromBlock = Math.max(0, latestBlock - maxBlocks);
       console.log('查询区块范围:', fromBlock, '到最新区块');
       
-      // 获取各类游戏事件
-      const createEvents = await contract.queryFilter(
-        contract.filters.GameCreated(), 
-        fromBlock, 
-        'latest'
-      );
+      // 获取各类游戏事件 - 使用 Wagmi v1 API 和结构化ABI对象
+      const createEvents = await publicClient.getContractEvents({
+        address: ROCK_PAPER_SCISSORS_ADDRESS,
+        abi: [{
+          name: 'GameCreated',
+          type: 'event',
+          inputs: [
+            { indexed: true, name: 'gameId', type: 'uint256' },
+            { indexed: true, name: 'creator', type: 'address' },
+            { indexed: false, name: 'bet', type: 'uint256' },
+            { indexed: false, name: 'totalTurns', type: 'uint256' }
+          ]
+        }],
+        eventName: 'GameCreated',
+        fromBlock: BigInt(fromBlock),
+        toBlock: 'latest'
+      });
       
-      const joinEvents = await contract.queryFilter(
-        contract.filters.PlayerJoined(),
-        fromBlock,
-        'latest'
-      );
+      const joinEvents = await publicClient.getContractEvents({
+        address: ROCK_PAPER_SCISSORS_ADDRESS,
+        abi: [{
+          name: 'PlayerJoined',
+          type: 'event',
+          inputs: [
+            { indexed: true, name: 'gameId', type: 'uint256' },
+            { indexed: true, name: 'player', type: 'address' }
+          ]
+        }],
+        eventName: 'PlayerJoined',
+        fromBlock: BigInt(fromBlock),
+        toBlock: 'latest'
+      });
       
-      const finishEvents = await contract.queryFilter(
-        contract.filters.GameFinished(),
-        fromBlock,
-        'latest'
-      );
+      const finishEvents = await publicClient.getContractEvents({
+        address: ROCK_PAPER_SCISSORS_ADDRESS,
+        abi: [{
+          name: 'GameFinished',
+          type: 'event',
+          inputs: [
+            { indexed: true, name: 'gameId', type: 'uint256' },
+            { indexed: false, name: 'winner', type: 'address' },
+            { indexed: false, name: 'prize', type: 'uint256' }
+          ]
+        }],
+        eventName: 'GameFinished',
+        fromBlock: BigInt(fromBlock),
+        toBlock: 'latest'
+      });
       
       // 筛选与当前用户相关的游戏ID
       const userGameIds = new Set();
       
-      // 从创建事件中筛选
+      // 从创建事件中筛选 - 适配Wagmi v1的事件结构
       createEvents.forEach(event => {
-        const creator = event.args[1];
-        if (creator.toLowerCase() === address.toLowerCase()) {
-          userGameIds.add(event.args[0].toString());
+        console.log('处理创建事件:', event);
+        
+        // 适配不同的args结构
+        const args = event.args;
+        let gameId, creator;
+        
+        if (args && typeof args === 'object' && !Array.isArray(args)) {
+          // 如果args是对象格式（Wagmi v1风格）
+          gameId = args.gameId;
+          creator = args.creator;
+        } else if (Array.isArray(args)) {
+          // 如果args是数组格式（传统风格）
+          gameId = args[0];
+          creator = args[1];
+        } else {
+          console.error('无法解析事件参数:', event);
+          return;
+        }
+        
+        if (creator && gameId && creator.toLowerCase() === address.toLowerCase()) {
+          userGameIds.add(gameId.toString());
         }
       });
       
-      // 从加入事件中筛选
+      // 从加入事件中筛选 - 适配Wagmi v1的事件结构
       joinEvents.forEach(event => {
-        const player = event.args[1];
-        if (player.toLowerCase() === address.toLowerCase()) {
-          userGameIds.add(event.args[0].toString());
+        console.log('处理加入事件:', event);
+        
+        // 适配不同的args结构
+        const args = event.args;
+        let gameId, player;
+        
+        if (args && typeof args === 'object' && !Array.isArray(args)) {
+          // 如果args是对象格式（Wagmi v1风格）
+          gameId = args.gameId;
+          player = args.player;
+        } else if (Array.isArray(args)) {
+          // 如果args是数组格式（传统风格）
+          gameId = args[0];
+          player = args[1];
+        } else {
+          console.error('无法解析事件参数:', event);
+          return;
+        }
+        
+        if (player && gameId && player.toLowerCase() === address.toLowerCase()) {
+          userGameIds.add(gameId.toString());
         }
       });
       
-      // 提取游戏ID和基本信息
+      // 提取游戏ID和基本信息 - 适配Wagmi v1的事件结构
       const gameIds = Array.from(userGameIds).map(gameId => {
-        const createEvent = createEvents.find(e => e.args[0].toString() === gameId);
+        // 匹配游戏ID，兼容两种结构
+        const createEvent = createEvents.find(e => {
+          const args = e.args;
+          if (args && typeof args === 'object' && !Array.isArray(args)) {
+            // 如果args是对象
+            return args.gameId && args.gameId.toString() === gameId;
+          } else if (Array.isArray(args)) {
+            // 如果args是数组
+            return args[0] && args[0].toString() === gameId;
+          }
+          return false;
+        });
         
         if (!createEvent) return { id: gameId };
         
-        const gameId_event = createEvent.args[0].toString();
-        const creator = createEvent.args[1];
-        const bet = createEvent.args[2];
-        const totalTurns = createEvent.args[3];
+        // 从事件中提取数据
+        const args = createEvent.args;
+        let gameId_event, creator, bet, totalTurns;
+        
+        if (args && typeof args === 'object' && !Array.isArray(args)) {
+          // 如果args是对象
+          gameId_event = args.gameId ? args.gameId.toString() : gameId;
+          creator = args.creator;
+          bet = args.bet;
+          totalTurns = args.totalTurns;
+        } else if (Array.isArray(args)) {
+          // 如果args是数组
+          gameId_event = args[0] ? args[0].toString() : gameId;
+          creator = args[1];
+          bet = args[2];
+          totalTurns = args[3];
+        } else {
+          console.error('无法解析事件参数:', createEvent);
+          return { id: gameId };
+        }
+        
+        // 添加空值检查
+        if (!bet || !totalTurns) {
+          console.error('事件数据不完整:', createEvent);
+          return { id: gameId };
+        }
         
         // 根据bet金额判断游戏类型（0表示代币游戏，>0表示ETH游戏）
-        const isTokenGame = bet.toString() === '0';
+        const isTokenGame = bet && bet.toString() === '0';
         
         // 获取创建时间
         let creationTime = Date.now() - 86400000; // 默认为1天前
@@ -99,16 +200,41 @@ export default function History() {
           creationTime = Date.now() - 86400000 * (Math.random() + 0.5);
         }
         
-        // 查找对应的完成事件
-        const finishEvent = finishEvents.find(e => e.args[0].toString() === gameId);
+        // 查找对应的完成事件 - 适配Wagmi v1的事件结构
+        const finishEvent = finishEvents.find(e => {
+          const args = e.args;
+          if (args && typeof args === 'object' && !Array.isArray(args)) {
+            // 如果args是对象
+            return args.gameId && args.gameId.toString() === gameId;
+          } else if (Array.isArray(args)) {
+            // 如果args是数组
+            return args[0] && args[0].toString() === gameId;
+          }
+          return false;
+        });
+        
         let result = 'unknown';
         let endedAt = Date.now() - 3600000 * (Math.random() * 10 + 2); // 默认为2-12小时前
         
         if (finishEvent) {
-          const winner = finishEvent.args[1];
-          if (winner.toLowerCase() === address.toLowerCase()) {
+          // 从事件中提取winner信息
+          const args = finishEvent.args;
+          let winner;
+          
+          if (args && typeof args === 'object' && !Array.isArray(args)) {
+            // 如果args是对象
+            winner = args.winner;
+          } else if (Array.isArray(args)) {
+            // 如果args是数组
+            winner = args[1];
+          } else {
+            console.error('无法解析完成事件参数:', finishEvent);
+            return { id: gameId };
+          }
+          
+          if (winner && winner.toLowerCase() === address.toLowerCase()) {
             result = 'won';
-          } else if (winner !== ethers.constants.AddressZero) {
+          } else if (winner && winner.toLowerCase() !== ZERO_ADDRESS.toLowerCase()) {
             result = 'lost';
           } else {
             result = 'draw';
@@ -120,7 +246,7 @@ export default function History() {
           creator,
           betAmount: bet,
           totalTurns: typeof totalTurns === 'object' && totalTurns.toNumber ? totalTurns.toNumber() : Number(totalTurns || 0),
-          gameType: isTokenGame ? 'token' : 'eth',
+          gameType: isTokenGame ? 'token' : 'MAG',
           createdAt: creationTime,
           endedAt: endedAt,
           result: result
@@ -137,7 +263,7 @@ export default function History() {
   // 获取游戏详情
   const fetchGameDetails = async (gameBasicInfoList) => {
     try {
-      if (!contract || !gameBasicInfoList.length) return [];
+      if (!publicClient || !gameBasicInfoList.length) return [];
       
       // 批量获取游戏详情
       const promises = gameBasicInfoList.map(async (basicInfo) => {
@@ -147,8 +273,13 @@ export default function History() {
           // 获取游戏状态
           let creator, player2, bet, totalTurns, player1Score, player2Score, currentTurn, state;
           try {
-            // 使用games函数获取游戏信息
-            const gameInfo = await contract.games(gameId);
+            // 使用 Wagmi v1 readContract API 获取游戏信息
+            const gameInfo = await readContract({
+              address: ROCK_PAPER_SCISSORS_ADDRESS,
+              abi: ABI,
+              functionName: 'games',
+              args: [gameId]
+            });
             
             console.log(`游戏ID ${gameId} 原始数据:`, gameInfo);
 
@@ -182,7 +313,7 @@ export default function History() {
           return {
             ...basicInfo,
             status: GAME_STATES[state] || 'unknown',
-            opponent: opponent !== ethers.constants.AddressZero ? opponent : null,
+            opponent: opponent.toLowerCase() !== ZERO_ADDRESS.toLowerCase() ? opponent : null,
             playerScore: playerScore,
             opponentScore: opponentScore,
             lastUpdated: Date.now()
@@ -461,8 +592,8 @@ const GameHistoryCard = ({ game, address }) => {
         </div>
         
         <div className="flex flex-wrap gap-2 items-center">
-          <div className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medieval ${game.gameType === 'eth' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}`}>
-            {game.gameType === 'eth' ? 'MAG游戏' : '代币游戏'}
+          <div className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medieval ${game.gameType === 'MAG' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}`}>
+            {game.gameType === 'MAG' ? 'MAG游戏' : '代币游戏'}
           </div>
           <div className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medieval ${resultStyle}`}>
             {resultText}
@@ -479,11 +610,11 @@ const GameHistoryCard = ({ game, address }) => {
               {opponent ? `${opponent.substr(0, 6)}...${opponent.substr(-4)}` : '无对手'}
             </span>
           </div>
-          {game.gameType === 'eth' && (
+          {game.gameType === 'MAG' && (
             <div className="mt-1 flex items-center flex-wrap">
               <span className="text-amber-800 font-medieval text-sm">投注金额:</span>
               <span className="ml-1 sm:ml-2 font-mono text-xs sm:text-sm">
-                {ethers.utils.formatEther(game.betAmount)} MAG
+                {formatEther(BigInt(game.betAmount))} MAG
               </span>
             </div>
           )}

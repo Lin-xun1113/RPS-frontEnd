@@ -1,14 +1,15 @@
 import { useState, useEffect } from 'react';
-import { useContract, useSigner, useProvider } from 'wagmi';
-import { ethers } from 'ethers';
+import { useWalletClient, usePublicClient } from 'wagmi';
+import { readContract, writeContract, getContract } from 'wagmi/actions';
+import { parseEther, formatEther, keccak256, toHex, getRandomBytes, encodePacked } from 'viem';
 import { ROCK_PAPER_SCISSORS_ADDRESS, ABI, GAME_STATES } from '../constants/contractInfo';
 
 /**
  * 自定义钩子用于处理石头剪刀布游戏逻辑
  */
 export default function useRPSGame(gameId) {
-  const { data: signer } = useSigner();
-  const provider = useProvider();
+  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
   
   const [game, setGame] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -17,12 +18,14 @@ export default function useRPSGame(gameId) {
   const [roundsWon, setRoundsWon] = useState({ player1: 0, player2: 0 });
   const [currentRound, setCurrentRound] = useState(1);
   
-  // 创建合约实例
-  const contract = useContract({
+  // 创建合约实例 - Wagmi v1 方式
+  // 注意：在v1中，不再使用useContract钩子，而是使用getContract action
+  const contract = walletClient ? getContract({
     address: ROCK_PAPER_SCISSORS_ADDRESS,
     abi: ABI,
-    signerOrProvider: signer || provider,
-  });
+    walletClient,
+    publicClient,
+  }) : null;
   
   // 加载游戏数据
   const fetchGameDetails = async () => {
@@ -40,10 +43,10 @@ export default function useRPSGame(gameId) {
         id: gameId,
         creator: '0xA795CEDd3962232e5A58EcB59BBb85ACa7f24781',
         player2: '0xB895CEDd3962232e5A58EcB59BBb85ACa7f24782',
-        betAmount: ethers.utils.parseEther('0.1'),
+        betAmount: parseEther('0.1'),
         totalTurns: 3,
         currentTurn: 1,
-        gameType: 'eth',
+        gameType: 'MAG',
         state: 5, // CommitPhase
         timeoutInterval: 300, // 5分钟
         commitDeadline: Math.floor(Date.now() / 1000) + 300,
@@ -97,13 +100,12 @@ export default function useRPSGame(gameId) {
       setError(null);
       
       // 生成随机盐值
-      const saltBytes = ethers.utils.randomBytes(32);
-      const salt = ethers.utils.hexlify(saltBytes);
+      const saltBytes = getRandomBytes(32);
+      const salt = toHex(saltBytes);
       
       // 生成提交哈希
-      const moveHash = ethers.utils.solidityKeccak256(
-        ['uint8', 'bytes32', 'address'],
-        [selectedMove, salt, address]
+      const moveHash = keccak256(
+        encodePacked(['uint8', 'bytes32', 'address'], [selectedMove, salt, address])
       );
       
       // 保存盐值到本地存储

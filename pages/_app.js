@@ -1,8 +1,8 @@
 import '../styles/globals.css';
 import '@rainbow-me/rainbowkit/styles.css';
 import { getDefaultWallets, RainbowKitProvider, lightTheme } from '@rainbow-me/rainbowkit';
-import { configureChains, createClient, WagmiConfig } from 'wagmi';
-import { publicProvider } from 'wagmi/providers/public';
+import { configureChains, createConfig, WagmiConfig } from 'wagmi';
+import { mainnet } from 'wagmi/chains';
 import { jsonRpcProvider } from 'wagmi/providers/jsonRpc';
 import { NETWORK } from '../constants/contractInfo';
 import { useState, useEffect } from 'react';
@@ -20,77 +20,112 @@ const magnetChain = {
     symbol: 'MAG',
   },
   rpcUrls: {
-    public: { http: [NETWORK.rpcUrl] },
     default: { http: [NETWORK.rpcUrl] },
+    public: { http: [NETWORK.rpcUrl] },
   },
+  blockExplorers: {
+    default: { name: 'Etherscan', url: 'https://etherscan.io' },
+  },
+  testnet: true
 };
 
-// 配置链和提供者 - 增加超时时间
-const { chains, provider } = configureChains(
-  [magnetChain],
+// 创建React Query客户端
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 3,
+      staleTime: 30000,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
+// 配置链和提供者
+const { chains, publicClient } = configureChains(
+  [mainnet, magnetChain], // 必须包含mainnet使用ENS功能
   [
     jsonRpcProvider({
-      rpc: (chain) => ({
-        http: NETWORK.rpcUrl,
-      }),
-      stallTimeout: 5000, // 增加超时时间到 5 秒
+      rpc: (chain) => {
+        if (chain.id === magnetChain.id) {
+          return { http: NETWORK.rpcUrl, webSocket: undefined };
+        }
+        return { http: 'https://eth.llamarpc.com', webSocket: undefined };
+      },
+      stallTimeout: 5000,
+      pollingInterval: 8000,
     }),
-    publicProvider({ stallTimeout: 5000 }), // 增加超时时间到 5 秒
   ]
 );
 
-// 配置钱包
+// 配置钱包连接器
 const { connectors } = getDefaultWallets({
   appName: '石头剪刀布',
-  projectId: '2481db9bcd46fb56e57b933e35d00420',
+  projectId: '2481db9bcd46fb56e57b933e35d00420', // WalletConnect v2 projectId
   chains,
 });
 
-// 创建React Query客户端
-const queryClient = new QueryClient();
-
-// 创建Wagmi客户端
-const wagmiClient = createClient({
-  autoConnect: true, 
+// 创建Wagmi配置 (使用v1版本格式)
+const wagmiConfig = createConfig({
+  autoConnect: true,
   connectors,
-  provider,
-  logger: { warn: null, error: null }, // 完全禁用日志
+  publicClient,
 });
 
-// 在客户端禁用控制台错误
-if (typeof window !== 'undefined') {
-  // 增强处理WalletConnect错误
-  const originalConsoleError = console.error;
-  console.error = (...args) => {
-    // 过滤WalletConnect相关错误
-    if (
-      (args[0] && 
-       typeof args[0] === 'object' && 
-       args[0].context && 
-       (args[0].context === 'core' || args[0].context === 'core/relayer')) ||
-      (typeof args[0] === 'string' && 
-       (args[0].includes('transportOpen') || 
-        args[0].includes('Attempt to connect to relay')))
-    ) {
-      // 静默处理连接错误
-      return;
-    }
-    originalConsoleError(...args);
+// 设置Lit为生产模式
+const litConfigScript = `
+  window.litConfig = {
+    devMode: false,
+    shady: true,
   };
+`;
 
-  // 添加错误处理函数
+// 在客户端优化钱包连接体验
+if (typeof window !== 'undefined') {
+  // 添加Lit配置
+  if (!document.getElementById('lit-config')) {
+    const script = document.createElement('script');
+    script.id = 'lit-config';
+    script.textContent = litConfigScript;
+    document.head.appendChild(script);
+  }
+  // 防止移动端 MetaMask 错误消息弹出
   window.addEventListener('unhandledrejection', (event) => {
     if (
       event.reason && 
       typeof event.reason.message === 'string' && 
       (event.reason.message.includes('transportOpen') || 
-       event.reason.message.includes('Attempt to connect to relay'))
+       event.reason.message.includes('Attempt to connect to relay') ||
+       event.reason.message.includes('MetaMask') ||
+       event.reason.message.includes('Timeout') ||
+       event.reason.message.includes('Network Error'))
     ) {
-      // 防止不必要的错误显示
       event.preventDefault();
       event.stopPropagation();
     }
   });
+  
+  // 重连机制
+  window._walletConnectRetryCount = 0;
+  const MAX_RETRY_COUNT = 2;
+  
+  // 网络恢复查询连接状态
+  window.addEventListener('online', () => {
+    console.log('网络已恢复，尝试重新连接钱包');
+    window._walletConnectRetryCount = 0;
+  });
+
+  // 移动端优化
+  if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+    // 移动端增加MetaMask的性能优化
+    localStorage.setItem('WALLETCONNECT_DEEPLINK_CHOICE', '');
+
+    // 监听页面可见性变化
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        console.log('页面可见，检查钱包连接状态');
+      }
+    });
+  }
 }
 
 // 创建客户端专用的Web3Provider组件
@@ -101,52 +136,75 @@ const ClientWeb3Provider = ({ children }) => {
     setMounted(true);
   }, []);
 
-  // 将hydration内容转为客户端渲染以避免不匹配
+  // 移动设备检测
+  const isMobile = typeof window !== 'undefined' && 
+    /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+  // 已挂载检查 (解决hydration不匹配)
   if (!mounted) {
     return <>{children}</>;
   }
 
   return (
-    <WagmiConfig client={wagmiClient}>
-      <RainbowKitProvider 
-        chains={chains}
-        theme={lightTheme({
-          accentColor: '#b45309', // amber-800
-          accentColorForeground: 'white',
-          borderRadius: 'medium',
-          fontStack: 'system',
-        })}
-        coolMode
-      >
-        {children}
-      </RainbowKitProvider>
+    <WagmiConfig config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <RainbowKitProvider 
+          chains={chains}
+          theme={lightTheme({
+            accentColor: '#b45309', // amber-800
+            accentColorForeground: 'white',
+            borderRadius: 'medium',
+            fontStack: 'system',
+            overlayBlur: 'small', // 移动端性能优化
+          })}
+          modalSize={isMobile ? 'compact' : 'wide'} // 移动端使用紧凑模式
+          coolMode
+        >
+          {children}
+        </RainbowKitProvider>
+      </QueryClientProvider>
     </WagmiConfig>
   );
 };
 
-// 使用动态导入来延迟加载客户端组件
-const ClientOnlyWeb3Provider = dynamic(() => Promise.resolve(ClientWeb3Provider), {
-  ssr: false
-});
-
-// 确保QueryClient在应用级别创建一次
-const globalQueryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 2,
-      staleTime: 30000,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
-
 function MyApp({ Component, pageProps }) {
+  // 检测客户端渲染
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // 移动设备检测
+  const isMobile = typeof window !== 'undefined' && 
+    /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  
+  // 返回全局包裹器 - 在服务器端和客户端都会渲染
   return (
-    <QueryClientProvider client={globalQueryClient}>
-      <ClientOnlyWeb3Provider>
-        <Component {...pageProps} />
-      </ClientOnlyWeb3Provider>
-    </QueryClientProvider>
+    <WagmiConfig config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>
+        <RainbowKitProvider 
+          chains={chains}
+          theme={lightTheme({
+            accentColor: '#b45309', // amber-800
+            accentColorForeground: 'white',
+            borderRadius: 'medium',
+            fontStack: 'system',
+            overlayBlur: 'small', // 移动端性能优化
+          })}
+          modalSize={isMobile ? 'compact' : 'wide'} // 移动端使用紧凑模式
+          coolMode
+        >
+          {/* 仅在客户端挂载完成后渲染实际内容 */}
+          {mounted ? <Component {...pageProps} /> : 
+            // 不挂载时显示空白占位符 - 避免服务端渲染不匹配
+            <div style={{visibility: 'hidden'}}>
+              <Component {...pageProps} />
+            </div>
+          }
+        </RainbowKitProvider>
+      </QueryClientProvider>
+    </WagmiConfig>
   );
 }
 

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useAccount, useBalance, useSigner, useProvider } from 'wagmi';
+import { useAccount, useBalance, useWalletClient, usePublicClient } from 'wagmi';
+import { readContract, writeContract, getContract } from 'wagmi/actions';
 import { ethers } from 'ethers';
 import { toast, Toaster } from 'react-hot-toast';
+import { formatEther } from 'viem';
 
 // 导入合约信息
 import { ROCK_PAPER_SCISSORS_ADDRESS, WINNING_TOKEN_ADDRESS, ABI } from '../constants/contractInfo';
@@ -9,36 +11,47 @@ import { ROCK_PAPER_SCISSORS_ADDRESS, WINNING_TOKEN_ADDRESS, ABI } from '../cons
 const ProfilePage = () => {
   const { address, isConnected } = useAccount();
   const { data: balance } = useBalance({ address });
-  const { data: signer } = useSigner();
-  const provider = useProvider();
+  const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
   const [pendingWithdrawals, setPendingWithdrawals] = useState('0');
   const [isWithdrawing, setIsWithdrawing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (isConnected && address && signer) {
+    if (isConnected && address && walletClient) {
       fetchPendingWithdrawals();
     } else {
       setPendingWithdrawals('0');
       setIsLoading(false);
     }
-  }, [address, isConnected, signer]);
+  }, [address, isConnected, walletClient]);
 
   const fetchPendingWithdrawals = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      const contract = new ethers.Contract(
-        ROCK_PAPER_SCISSORS_ADDRESS,
-        ABI,
-        signer
-      );
-
-      const withdrawals = await contract.getPendingWithdrawals(address);
+      // 使用 Wagmi v1 的 readContract API 代替 ethers.Contract
+      const withdrawals = await readContract({
+        address: ROCK_PAPER_SCISSORS_ADDRESS,
+        abi: [{
+          name: 'getPendingWithdrawals',
+          type: 'function',
+          stateMutability: 'view',
+          inputs: [{
+            name: 'player',
+            type: 'address'
+          }],
+          outputs: [{
+            type: 'uint256'
+          }]
+        }],
+        functionName: 'getPendingWithdrawals',
+        args: [address]
+      });
       setPendingWithdrawals(withdrawals.toString());
-      console.log('待提取余额:', ethers.utils.formatEther(withdrawals), 'MAG');
+      console.log('待提取余额:', formatEther(withdrawals), 'MAG');
 
     } catch (error) {
       console.error('获取待提取余额失败:', error.message);
@@ -49,7 +62,7 @@ const ProfilePage = () => {
   };
 
   const handleWithdraw = async () => {
-    if (!isConnected || !signer) {
+    if (!isConnected || !walletClient) {
       toast.error('请先连接钱包');
       return;
     }
@@ -63,17 +76,25 @@ const ProfilePage = () => {
       setIsWithdrawing(true);
       setError(null);
 
-      const contract = new ethers.Contract(
-        ROCK_PAPER_SCISSORS_ADDRESS,
-        ABI,
-        signer
-      );
-
       toast.loading('正在提取奖励...', { id: 'withdraw' });
-      const tx = await contract.withdrawPrize();
+      
+      // 使用 Wagmi v1 的 writeContract API 代替 ethers.Contract
+      const { hash } = await writeContract({
+        address: ROCK_PAPER_SCISSORS_ADDRESS,
+        abi: [{
+          name: 'withdrawPrize',
+          type: 'function',
+          stateMutability: 'nonpayable',
+          inputs: [],
+          outputs: [{
+            type: 'bool'
+          }]
+        }],
+        functionName: 'withdrawPrize',
+      });
       
       toast.loading('等待交易确认...', { id: 'withdraw' });
-      await tx.wait();
+      await publicClient.waitForTransactionReceipt({ hash });
       
       toast.success('成功提取奖励！', { id: 'withdraw' });
       
@@ -135,14 +156,14 @@ const ProfilePage = () => {
               <div>
                 <p className="text-gray-600 text-sm mb-1">待提取奖励</p>
                 <p className="text-lg font-semibold">
-                  {isLoading ? '加载中...' : `${ethers.utils.formatEther(pendingWithdrawals)} MAG`}
+                  {isLoading ? '加载中...' : `${formatEther(BigInt(pendingWithdrawals))} MAG`}
                 </p>
               </div>
               
               <button
                 onClick={handleWithdraw}
-                disabled={isWithdrawing || isLoading || ethers.BigNumber.from(pendingWithdrawals).lte(0)}
-                className={`w-full py-2 px-4 rounded-lg font-medieval text-white ${ethers.BigNumber.from(pendingWithdrawals).lte(0) || isWithdrawing ? 'bg-gray-400 cursor-not-allowed' : 'bg-amber-600 hover:bg-amber-700'}`}
+                disabled={isWithdrawing || isLoading || BigInt(pendingWithdrawals) <= 0n}
+                className={`w-full py-2 px-4 rounded-lg font-medieval text-white ${BigInt(pendingWithdrawals) <= 0n || isWithdrawing ? 'bg-gray-400 cursor-not-allowed' : 'bg-amber-600 hover:bg-amber-700'}`}
               >
                 {isWithdrawing ? '提取中...' : '提取奖励'}
               </button>
