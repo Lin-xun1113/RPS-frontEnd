@@ -42,7 +42,7 @@ const { chains, provider } = configureChains(
 // 配置钱包
 const { connectors } = getDefaultWallets({
   appName: '石头剪刀布',
-  projectId: '2481db9bcd46fb56e57b933e35d00420', // 测试用WalletConnect ID
+  projectId: '2481db9bcd46fb56e57b933e35d00420',
   chains,
 });
 

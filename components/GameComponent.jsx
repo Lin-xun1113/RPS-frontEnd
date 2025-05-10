@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { RefreshCw } from 'lucide-react';
 import { useRouter } from 'next/router';
 import { useAccount, useContract, useSigner, useProvider } from 'wagmi';
 import { ethers } from 'ethers';
@@ -25,6 +26,7 @@ export default function GameComponent() {
   const [game, setGame] = useState(null);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [selectedMove, setSelectedMove] = useState(null);
   const [phase, setPhase] = useState('waiting'); // waiting, join, commit, reveal, results, finished
   const [currentRound, setCurrentRound] = useState(1);
@@ -141,16 +143,33 @@ export default function GameComponent() {
     }
   }, [game?.currentTurn]);
   
+  // 手动刷新游戏状态
+  const handleManualRefresh = async () => {
+    if (refreshing) return;
+    
+    try {
+      setRefreshing(true);
+      toast.loading('刷新游戏状态...', { id: 'refresh-toast' });
+      await fetchGameDetails(true);
+      toast.success('游戏状态已更新', { id: 'refresh-toast' });
+    } catch (error) {
+      console.error('手动刷新失败:', error);
+      toast.error('刷新失败，请重试', { id: 'refresh-toast' });
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   // 从区块链获取游戏详情
-  const fetchGameDetails = useCallback(async () => {
+  const fetchGameDetails = useCallback(async (isManualRefresh = false) => {
     if (!gameId || !isConnected || !contract) return;
     
-    // 如果状态已锁定且当前在“已揭示”状态，降低获取数据的频率
-    // 避免频繁请求和界面闪烁
+    // 如果是手动刷新，忽略锁定状态，强制刷新
+    // 否则，如果状态已锁定且当前在“已揭示”状态，降低获取数据的频率
     const now = Date.now();
     const timeSinceLastRefresh = now - lastRefresh;
     
-    if (phaseLocked && phase === 'player_revealed' && timeSinceLastRefresh < 15000) {
+    if (!isManualRefresh && phaseLocked && phase === 'player_revealed' && timeSinceLastRefresh < 15000) {
       console.log('状态已锁定且在“已揭示”状态，跳过刷新');
       return;
     }
@@ -929,9 +948,19 @@ else if (gameData.state === 0 || gameData.state === 5) {
         }
         
         currentSalt = ethers.utils.hexlify(saltUtf8Bytes);
-        console.log('手动输入的盐值已转换格式:', inputSalt, '->', currentSalt);
+        
+        if (salt.length < 8) {
+          toast(`您输入的盐值较短，安全性较低，但仍将使用`);
+        } else {
+          toast.success('已接受您的自定义盐值: ' + salt);
+        }
       }
-      
+      setSalt(salt);
+      saltRef.current = salt;
+
+      console.log('选择的移动:', selectedMove);
+      console.log('最终使用的盐值:', currentSalt);
+
       // 确保有一个选择的移动
       if (!selectedMove && game) {
         // 尝试从游戏状态获取之前提交的移动
@@ -1310,8 +1339,20 @@ else if (gameData.state === 0 || gameData.state === 5) {
   }
   
   return (
-    <div className="p-4">
-      <Toaster position="top-center" toastOptions={{ duration: 5000 }} />
+    <div className="game-component relative">
+      <Toaster position="top-center" />
+      
+      {/* 手动刷新按钮 */}
+      <div className="absolute top-3 right-3 z-30">
+        <button 
+          onClick={handleManualRefresh}
+          disabled={refreshing}
+          className="flex items-center justify-center p-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-full shadow-lg transition-all duration-300 transform hover:scale-105 active:scale-95"
+          title="刷新游戏状态"
+        >
+          <RefreshCw size={20} className={`${refreshing ? 'animate-spin' : ''}`} />
+        </button>
+      </div>
       <div className="max-w-4xl mx-auto py-4">
         <div className="mb-6">
           <button
