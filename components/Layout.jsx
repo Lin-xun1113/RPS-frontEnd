@@ -37,7 +37,7 @@ const Layout = ({ children }) => {
               <div className="relative w-14 h-14">
                 <Image src="/images/logo-scroll.png" fill style={{objectFit: 'contain'}} alt="RPS游戏" />
               </div>
-              <h1 className="ml-3 text-3xl font-medieval text-amber-900">石头剪刀布游戏</h1>
+              <h1 className="ml-3 text-3xl font-medieval text-amber-900">石头剪刀布</h1>
             </div>
           </Link>
           

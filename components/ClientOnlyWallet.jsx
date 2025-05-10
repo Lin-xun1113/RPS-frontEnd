@@ -145,13 +145,13 @@ const ClientOnlyWallet = dynamic(
                 }
                 
                 return (
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-col sm:flex-row items-center gap-1 sm:gap-3">
                     <button
                       onClick={openChainModal}
-                      className="flex items-center bg-amber-800/20 rounded-full px-3 py-1 border border-amber-800"
+                      className="flex items-center bg-amber-800/20 rounded-full px-2 sm:px-3 py-1 border border-amber-800 text-nowrap overflow-hidden w-full sm:w-auto"
                     >
                       {chain.hasIcon && (
-                        <div className="mr-1 relative w-4 h-4">
+                        <div className="mr-1 relative w-4 h-4 flex-shrink-0">
                           {chain.iconUrl && (
                             <Image
                               alt={chain.name ?? '链图标'}
@@ -162,16 +162,16 @@ const ClientOnlyWallet = dynamic(
                           )}
                         </div>
                       )}
-                      <span className="text-amber-900 font-medieval text-sm">
+                      <span className="text-amber-900 font-medieval text-xs sm:text-sm truncate max-w-16 sm:max-w-none">
                         {chain.name}
                       </span>
                     </button>
                     
                     <button
                       onClick={openAccountModal}
-                      className="flex items-center bg-amber-800/20 rounded-full px-3 py-1 border border-amber-800"
+                      className="flex items-center bg-amber-800/20 rounded-full px-2 sm:px-3 py-1 border border-amber-800 text-nowrap overflow-hidden w-full sm:w-auto"
                     >
-                      <span className="text-amber-900 font-medieval text-sm">
+                      <span className="text-amber-900 font-medieval text-xs sm:text-sm truncate max-w-20 sm:max-w-none">
                         {account.displayName}
                       </span>
                     </button>
